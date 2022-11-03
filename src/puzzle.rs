@@ -1,4 +1,7 @@
-use std::ops::{Add, AddAssign};
+use std::{
+    collections::HashSet,
+    ops::{Add, AddAssign},
+};
 
 use crate::shape::{CellVec, EdgeIdx, Shape};
 
@@ -10,29 +13,45 @@ pub struct Puzzle {
 }
 
 impl Puzzle {
-    pub fn draw_square(&self) {
+    /// Prints a picture of the given `line` running through this `Puzzle`.
+    pub fn print_line(&self, line: &HashSet<EdgeIdx>) {
         let width = self.shape.square_size.x as usize;
         let height = self.shape.square_size.y as usize;
-
-        let mut boundary_line = "+".to_owned();
-        for _ in 0..width {
-            boundary_line.push_str("---+");
-        }
+        let num_horizontal_edges = width * (height + 1);
+        let num_vertical_edges = (width + 1) * height;
 
         let mut pips_iter = self.pips_in_each_cell.iter().map(|pips| pips.0);
+        let mut vertical_edges = (0..num_vertical_edges).map(EdgeIdx::new);
+        let mut horizontal_edges =
+            (0..num_horizontal_edges).map(|i| EdgeIdx::new(i + num_vertical_edges));
 
-        println!("{}", boundary_line);
-        for _ in 0..height {
+        for y in 0..height + 1 {
+            // Print line of horizontal edges
             for _ in 0..width {
-                let num_pips = pips_iter.next().unwrap();
-                if num_pips == 0 {
-                    print!("|   ");
-                } else {
-                    print!("| {} ", num_pips);
+                print!("+");
+                match line.contains(&horizontal_edges.next().unwrap()) {
+                    true => print!("---"),
+                    false => print!("   "),
                 }
             }
-            println!("|");
-            println!("{}", boundary_line);
+            println!("+");
+            // Print line of vertical edges and each cell's pip count
+            let mut next_vertical_edge_char = || -> char {
+                match line.contains(&vertical_edges.next().unwrap()) {
+                    true => '|',
+                    false => ' ',
+                }
+            };
+            if y < height {
+                for _ in 0..width {
+                    print!("{} ", next_vertical_edge_char());
+                    match pips_iter.next().unwrap() {
+                        0 => print!("  "),
+                        num_pips => print!("{num_pips} "),
+                    }
+                }
+                println!("{}", next_vertical_edge_char());
+            }
         }
     }
 }
