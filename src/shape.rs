@@ -1,4 +1,4 @@
-use glam::Vec2;
+use glam::{UVec2, Vec2};
 
 /// The `Shape` of a puzzle.  This stores the positions and connections of the
 /// edges/vertices/cells
@@ -7,6 +7,8 @@ pub struct Shape {
     pub verts: VertVec<Vec2>,
     pub edges: EdgeVec<(VertIdx, VertIdx)>,
     pub cells: CellVec<Cell>,
+
+    pub square_size: UVec2,
 }
 
 /// A `Cell` into which [`Pip`]s can be added
@@ -89,6 +91,8 @@ impl Shape {
             verts,
             edges,
             cells,
+
+            square_size: UVec2::new(width as u32, height as u32),
         }
     }
 }
