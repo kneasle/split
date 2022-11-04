@@ -19,6 +19,7 @@ pub struct Cell {
 }
 
 impl Shape {
+    /// Make a new `Shape` of a rectangular grid of the given size
     pub fn rectangular(width: usize, height: usize) -> Self {
         // Converters for coords => indices
         let get_vert_idx = |x: usize, y: usize| VertIdx::new(y * (width + 1) + x);
