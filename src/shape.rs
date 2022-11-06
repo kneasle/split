@@ -1,4 +1,4 @@
-use glam::{UVec2, Vec2};
+use bevy::math::{UVec2, Vec2}; // TODO: Depend directly on glam if we split crates?
 
 /// The `Shape` of a puzzle.  This stores the positions and connections of the
 /// edges/vertices/cells
