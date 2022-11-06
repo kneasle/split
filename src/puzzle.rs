@@ -4,6 +4,8 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+use itertools::Itertools;
+
 use crate::shape::{CellIdx, CellVec, EdgeIdx, Shape};
 
 /// A `Puzzle` grid, with no associated solution
@@ -22,6 +24,47 @@ pub struct Solution {
 }
 
 impl Puzzle {
+    /// Load a puzzle from a string.  The index of the first '|' indicates the width, and every
+    /// other character represents a cell.  All lines are expected to be delimited by '|'s.
+    ///
+    /// For example, `" 2 |1 1|212"` generates a grid like:
+    /// ```text
+    /// +   +   +   +
+    ///       2
+    /// +   +   +   +
+    ///   1       1
+    /// +   +   +   +
+    ///   2   1   2
+    /// +   +   +   +
+    /// ```
+    // TODO: Don't panic
+    pub fn from_single_line(line: &str) -> Self {
+        let rows = line.split("|").collect_vec();
+        let width = rows[0].len();
+        let height = rows.len();
+        assert!(rows.iter().all(|r| r.len() == width)); // Check all rows have same lengths
+
+        // Read pip counts
+        let mut pips_in_each_cell = CellVec::new();
+        for row in rows {
+            for cell_char in row.chars() {
+                match cell_char {
+                    '0'..='9' => pips_in_each_cell.push(Pips(cell_char as usize - '0' as usize)),
+                    ' ' => pips_in_each_cell.push(Pips(0)),
+                    c => panic!("Unknown char '{c}'"),
+                };
+            }
+        }
+        assert_eq!(pips_in_each_cell.len(), width * height);
+
+        let shape = Shape::rectangular(width, height);
+        Puzzle {
+            shape,
+            pips_in_each_cell,
+        }
+    }
+
+    /// Get the [`Solution`] defined by the given `line`.
     pub fn solution(&self, line: HashSet<EdgeIdx>) -> Solution {
         let regions = self.regions(&line);
         let pip_count = self.solution_number(&regions);

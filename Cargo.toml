@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 glam = "0.22.0"
 index_vec = "0.1.3"
+itertools = "0.10"

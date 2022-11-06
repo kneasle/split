@@ -1,20 +1,12 @@
 use shape::EdgeIdx;
 
-use crate::{
-    puzzle::{Pips, Puzzle},
-    shape::Shape,
-};
+use crate::puzzle::Puzzle;
 
 mod puzzle;
 mod shape;
 
 fn main() {
-    let shape = Shape::rectangular(2, 2);
-    let puzzle = Puzzle {
-        shape,
-        pips_in_each_cell: vec![Pips(2), Pips(1), Pips(1), Pips(0)].into(),
-    };
-
+    let puzzle = Puzzle::from_single_line("21|1 ");
     let line = [1, 7, 2, 5, 11, 10, 3, 8]
         .into_iter()
         .map(EdgeIdx::new)
