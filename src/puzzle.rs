@@ -4,12 +4,13 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+use bevy::prelude::Component;
 use itertools::Itertools;
 
 use crate::shape::{CellIdx, CellVec, EdgeIdx, Shape};
 
 /// A `Puzzle` grid, with no associated solution
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)] // TODO: Not `Component`?
 pub struct Puzzle {
     pub shape: Shape,
     pub pips_in_each_cell: CellVec<Pips>, // How many pips are in each cell
