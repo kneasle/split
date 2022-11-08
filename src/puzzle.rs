@@ -86,7 +86,7 @@ impl Puzzle {
         let mut verts = VertVec::new();
         for y in 0..height + 1 {
             for x in 0..width + 1 {
-                verts.push(Vec2::new(x as f32, y as f32));
+                verts.push(Vec2::new(x as f32, (height - y) as f32));
             }
         }
         // Create edges
@@ -154,6 +154,7 @@ impl Puzzle {
             square_size: UVec2::new(width as u32, height as u32),
         }
     }
+
     /// Get the [`Solution`] defined by the given `line`.
     pub fn solution(&self, line: HashSet<EdgeIdx>) -> Solution {
         let regions = self.regions(&line);
@@ -213,6 +214,7 @@ impl Puzzle {
     }
 
     /// Prints a picture of the given `line` running through this `Puzzle`.
+    // TODO: Make this not upside-down
     pub fn print_line(&self, line: &HashSet<EdgeIdx>) {
         let width = self.square_size.x as usize;
         let height = self.square_size.y as usize;
