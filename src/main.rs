@@ -1,10 +1,8 @@
 use bevy::prelude::*;
-use puzzle::Puzzle;
-use shape::EdgeIdx;
+use puzzle::{EdgeIdx, Puzzle};
 
 mod grid;
 mod puzzle;
-mod shape;
 mod utils;
 
 fn main() {

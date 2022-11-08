@@ -5,7 +5,10 @@ use bevy::{
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 
-use crate::{puzzle::Puzzle, shape::CellIdx, utils::vec2_to_3};
+use crate::{
+    puzzle::{CellIdx, Pips, Puzzle},
+    utils::vec2_to_3,
+};
 
 const VERTEX_SIZE: f32 = 0.3;
 const EDGE_WIDTH: f32 = 0.15;
@@ -53,13 +56,13 @@ pub fn add_grid(
             parent
                 .spawn_bundle(SpatialBundle {
                     transform: Transform::default()
-                        .with_translation(vec2_to_3(puzzle.shape.square_size.as_vec2() / -2.0)),
+                        .with_translation(vec2_to_3(puzzle.square_size.as_vec2() / -2.0)),
                     ..Default::default()
                 })
                 // Then add the puzzle's contents, which inherit the centering
                 .with_children(|parent| {
                     // Vertices
-                    for v in &puzzle.shape.verts {
+                    for v in &puzzle.verts {
                         parent.spawn_bundle(MaterialMesh2dBundle {
                             mesh: quad_mesh.clone(),
                             transform: Transform::default()
@@ -70,9 +73,9 @@ pub fn add_grid(
                         });
                     }
                     // Edges
-                    for (v1, v2) in &puzzle.shape.edges {
-                        let v1 = vec2_to_3(puzzle.shape.verts[*v1]);
-                        let v2 = vec2_to_3(puzzle.shape.verts[*v2]);
+                    for (v1, v2) in &puzzle.edges {
+                        let v1 = vec2_to_3(puzzle.verts[*v1]);
+                        let v2 = vec2_to_3(puzzle.verts[*v2]);
                         parent.spawn_bundle(MaterialMesh2dBundle {
                             mesh: quad_mesh.clone(),
                             transform: Transform::default()
@@ -84,8 +87,8 @@ pub fn add_grid(
                         });
                     }
                     // Pips
-                    for (cell_idx, num_pips) in puzzle.pips_in_each_cell.iter_enumerated() {
-                        for pip_idx in 0..num_pips.0 {
+                    for (cell_idx, cell) in puzzle.cells.iter_enumerated() {
+                        for pip_idx in 0..cell.pips.0 {
                             let pip = Pip {
                                 source_cell: cell_idx,
                                 source_idx: pip_idx,
@@ -107,21 +110,18 @@ pub fn add_grid(
 }
 
 fn pip_coord(puzzle: &Puzzle, pip: &Pip) -> Vec3 {
-    let cell = &puzzle.shape.cells[pip.source_cell];
-    let sum = cell
-        .verts
-        .iter()
-        .map(|v| &puzzle.shape.verts[*v])
-        .sum::<Vec2>();
+    let cell = &puzzle.cells[pip.source_cell];
+    let sum = cell.verts.iter().map(|v| &puzzle.verts[*v]).sum::<Vec2>();
     let cell_centre = vec2_to_3(sum) / cell.verts.len() as f32;
 
-    let patterns = pip_pattern(puzzle.pips_in_each_cell[pip.source_cell].0);
+    let patterns = pip_pattern(cell.pips);
 
     cell_centre + vec2_to_3(patterns[pip.source_idx]) * PIP_PATTERN_RADIUS + Vec3::Z * PIP_Z
 }
 
 /// Creates the pattern of pips, as would be found on a dice.
-fn pip_pattern(num_pips: usize) -> Vec<Vec2> {
+fn pip_pattern(num_pips: Pips) -> Vec<Vec2> {
+    let num_pips = num_pips.0;
     assert!(num_pips <= 10);
 
     let mut pips = Vec::new();
