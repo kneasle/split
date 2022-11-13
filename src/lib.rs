@@ -1,22 +1,11 @@
-use bevy::prelude::*;
 use puzzle::{EdgeIdx, Puzzle};
 
-mod grid;
+// mod grid;
 mod puzzle;
-mod utils;
+// mod utils;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_startup_system(init)
-        .add_startup_system(print_some_puzzles)
-        .add_startup_system(grid::add_grid)
-        .add_system(grid::update_cursor_tag)
-        .run();
-}
-
-fn init(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    print_some_puzzles();
 }
 
 fn print_some_puzzles() {

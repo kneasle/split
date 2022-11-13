@@ -4,15 +4,11 @@ use std::{
     ops::{Add, AddAssign},
 };
 
-use bevy::{
-    math::{UVec2, Vec2}, // TODO: Depend directly on glam if we split crates?
-    prelude::Component,
-};
-
+use glam::{UVec2, Vec2};
 use itertools::Itertools;
 
 /// A `Puzzle` grid, with no associated solution
-#[derive(Debug, Clone, Component)] // TODO: Not `Component`?
+#[derive(Debug, Clone)] // TODO: Not `Component`?
 pub struct Puzzle {
     pub verts: VertVec<Vec2>,
     pub edges: EdgeVec<(VertIdx, VertIdx)>,
