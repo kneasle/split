@@ -7,10 +7,11 @@ mod utils;
 
 fn main() {
     App::new()
+        .add_plugins(DefaultPlugins)
         .add_startup_system(init)
         .add_startup_system(print_some_puzzles)
         .add_startup_system(grid::add_grid)
-        .add_plugins(DefaultPlugins)
+        .add_system(grid::update_cursor_tag)
         .run();
 }
 

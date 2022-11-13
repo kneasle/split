@@ -61,52 +61,72 @@ pub fn add_grid(
                 })
                 // Then add the puzzle's contents, which inherit the centering
                 .with_children(|parent| {
-                    // Vertices
-                    for v in &puzzle.verts {
-                        parent.spawn_bundle(MaterialMesh2dBundle {
-                            mesh: quad_mesh.clone(),
-                            transform: Transform::default()
-                                .with_translation(vec2_to_3(*v))
-                                .with_scale(Vec3::splat(VERTEX_SIZE)),
-                            material: black_material.clone(),
-                            ..default()
-                        });
-                    }
-                    // Edges
-                    for (v1, v2) in &puzzle.edges {
-                        let v1 = vec2_to_3(puzzle.verts[*v1]);
-                        let v2 = vec2_to_3(puzzle.verts[*v2]);
-                        parent.spawn_bundle(MaterialMesh2dBundle {
-                            mesh: quad_mesh.clone(),
-                            transform: Transform::default()
-                                .with_translation((v1 + v2) / 2.0)
-                                .with_rotation(Quat::from_rotation_arc(Vec3::Y, v2 - v1))
-                                .with_scale(Vec3::new(EDGE_WIDTH, (v1 - v2).length(), 1.0)),
-                            material: black_material.clone(),
-                            ..default()
-                        });
-                    }
-                    // Pips
-                    for (cell_idx, cell) in puzzle.cells.iter_enumerated() {
-                        for pip_idx in 0..cell.pips.0 {
-                            let pip = Pip {
-                                source_cell: cell_idx,
-                                source_idx: pip_idx,
-                            };
-                            parent
-                                .spawn_bundle(MaterialMesh2dBundle {
-                                    mesh: quad_mesh.clone(),
-                                    transform: Transform::default()
-                                        .with_translation(pip_coord(&puzzle, &pip))
-                                        .with_scale(Vec3::splat(PIP_SIZE)),
-                                    material: pip_material.clone(),
-                                    ..default()
-                                })
-                                .insert(pip);
-                        }
-                    }
+                    build_puzzle_children(puzzle, parent, quad_mesh, black_material, pip_material);
                 });
         });
+}
+
+/// Build child entities for all pieces of the given [`Puzzle`]
+fn build_puzzle_children(
+    puzzle: Puzzle,
+    parent: &mut ChildBuilder,
+    quad_mesh: Mesh2dHandle,
+    black_material: Handle<ColorMaterial>,
+    pip_material: Handle<ColorMaterial>,
+) {
+    // Vertices
+    for v in &puzzle.verts {
+        parent.spawn_bundle(MaterialMesh2dBundle {
+            mesh: quad_mesh.clone(),
+            transform: Transform::default()
+                .with_translation(vec2_to_3(*v))
+                .with_scale(Vec3::splat(VERTEX_SIZE)),
+            material: black_material.clone(),
+            ..default()
+        });
+    }
+    // Edges
+    for (v1, v2) in &puzzle.edges {
+        let v1 = vec2_to_3(puzzle.verts[*v1]);
+        let v2 = vec2_to_3(puzzle.verts[*v2]);
+        parent.spawn_bundle(MaterialMesh2dBundle {
+            mesh: quad_mesh.clone(),
+            transform: Transform::default()
+                .with_translation((v1 + v2) / 2.0)
+                .with_rotation(Quat::from_rotation_arc(Vec3::Y, v2 - v1))
+                .with_scale(Vec3::new(EDGE_WIDTH, (v1 - v2).length(), 1.0)),
+            material: black_material.clone(),
+            ..default()
+        });
+    }
+    // Pips
+    for (cell_idx, cell) in puzzle.cells.iter_enumerated() {
+        for pip_idx in 0..cell.pips.0 {
+            let pip = Pip {
+                source_cell: cell_idx,
+                source_idx: pip_idx,
+            };
+            parent
+                .spawn_bundle(MaterialMesh2dBundle {
+                    mesh: quad_mesh.clone(),
+                    transform: Transform::default()
+                        .with_translation(pip_coord(&puzzle, &pip))
+                        .with_scale(Vec3::splat(PIP_SIZE)),
+                    material: pip_material.clone(),
+                    ..default()
+                })
+                .insert(pip);
+        }
+    }
+    // Cursor tag
+    parent
+        .spawn_bundle(MaterialMesh2dBundle {
+            mesh: quad_mesh.clone(),
+            transform: Transform::default().with_scale(Vec3::splat(PIP_SIZE)),
+            material: pip_material.clone(),
+            ..default()
+        })
+        .insert(CursorTag);
 }
 
 fn pip_coord(puzzle: &Puzzle, pip: &Pip) -> Vec3 {
@@ -146,4 +166,21 @@ fn pip_pattern(num_pips: Pips) -> Vec<Vec2> {
     }
 
     pips
+}
+
+#[derive(Component)]
+pub struct CursorTag;
+
+pub fn update_cursor_tag(
+    cursor_tag: Query<(&mut Transform, &GlobalTransform), With<CursorTag>>,
+    mut cursor_evt: EventReader<CursorMoved>,
+) {
+    for ev in cursor_evt.iter() {
+        let pos3 = vec2_to_3(ev.position);
+        println!("Cursor @ ({}, {})", pos3.x, pos3.y);
+        for (transform, global_transform) in cursor_tag.iter() {
+            let a = global_transform.affine().inverse().transform_point3(pos3);
+            println!("{:?}", a);
+        }
+    }
 }

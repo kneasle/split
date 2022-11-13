@@ -51,7 +51,7 @@ impl Puzzle {
     ///   2   1   2
     /// +   +   +   +
     /// ```
-    // TODO: Don't panic
+    // TODO: Don't panic on invalid input
     pub fn from_single_line(line: &str) -> Self {
         let rows = line.split("|").collect_vec();
         let width = rows[0].len();
