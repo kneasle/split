@@ -4,6 +4,18 @@ use puzzle::{EdgeIdx, Puzzle};
 mod puzzle;
 // mod utils;
 
+#[no_mangle]
+pub extern "C" fn add(a: u32, b: u32) -> &'static mut u32 {
+    let boks = Box::new(a + b);
+    Box::leak(boks)
+}
+
+#[no_mangle]
+pub extern "C" fn get(v: &'static mut u32) -> u32 {
+    web_sys::console::log_1(&"Hello, World!".into());
+    *v
+}
+
 fn main() {
     print_some_puzzles();
 }

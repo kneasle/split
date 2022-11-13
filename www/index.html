@@ -10,7 +10,7 @@
       <input 
         type="submit" 
         value="X+Y=" 
-        onClick="result.innerText = wasm_add(X.value,Y.value)">
+        onClick="result.innerText = wasm_get(wasm_add(X.value,Y.value))">
       <label id="result"></label>   
     </form>       
 
@@ -21,6 +21,7 @@
           .then(wasmModule => {
               // this saves the exported function from WASM module for use in JS
               wasm_add = wasmModule.instance.exports.add;
+              wasm_get = wasmModule.instance.exports.get;
           });
     </script>
   </body>
