@@ -11,6 +11,8 @@ const VERTEX_SIZE = 0.3;
 const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.1;
+// Interaction
+const VERTEX_INTERACTION_RADIUS = 0.71;
 
 /// Singleton instance which handles all top-level game logic
 class Game {
@@ -42,7 +44,7 @@ class Grid {
 
     // Find the closest vertex
     let nearest_vert_idx = undefined;
-    let nearest_vert_distance = 0.6;
+    let nearest_vert_distance = VERTEX_INTERACTION_RADIUS;
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       let { x: vert_x, y: vert_y } = this.puzzle.verts[v_idx];
       let dX = local_x - vert_x;
@@ -59,6 +61,36 @@ class Grid {
       nearest_vert_idx,
       nearest_vert_distance,
     };
+  }
+
+  /// Called when the mouse is clicked (i.e. a line should start being drawn)
+  on_mouse_down() {
+    let mouse = this.mouse_state();
+    if (mouse.nearest_vert_idx !== undefined) {
+      this.line = [mouse.nearest_vert_idx];
+    }
+  }
+
+  /// Called when the mouse moves
+  on_mouse_move() {
+    let mouse = this.mouse_state();
+
+    let new_vert = mouse.nearest_vert_idx;
+    let last_vert = this.line[this.line.length - 1];
+    let penultimate_vert = this.line[this.line.length - 2];
+
+    if (this.line.length == 0) return; // No line is being drawn
+    if (!mouse_button) return; // User is not dragging
+    if (new_vert === undefined) return; // Mouse not close enough to a vert
+    if (new_vert === last_vert) return; // Still on last vert
+    if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined)
+       return; // Verts aren't connected
+
+    if (new_vert === penultimate_vert) {
+     this.line.pop(); // Moved backward, 'unwind' the line
+    } else {
+      this.line.push(new_vert); // Moved forward, 'extend' the line
+    }
   }
 
   draw() {
@@ -93,12 +125,7 @@ class Grid {
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       const { x, y } = this.puzzle.verts[v_idx];
       ctx.fillStyle = v_idx === mouse.nearest_vert_idx ? LINE_COLOR : GRID_COLOR;
-      ctx.fillRect(
-        x - VERTEX_SIZE / 2,
-        y - VERTEX_SIZE / 2,
-        VERTEX_SIZE,
-        VERTEX_SIZE
-      );
+      ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
     // Line
     ctx.lineWidth = EDGE_WIDTH;
@@ -116,12 +143,7 @@ class Grid {
       for (const { x, y } of dice_pattern(c.pips)) {
         let puzzle_x = c.centre.x + x * PIP_PATTERN_RADIUS;
         let puzzle_y = c.centre.y + y * PIP_PATTERN_RADIUS;
-        ctx.fillRect(
-          puzzle_x - PIP_SIZE / 2,
-          puzzle_y - PIP_SIZE / 2,
-          PIP_SIZE,
-          PIP_SIZE,
-        );
+        ctx.fillRect(puzzle_x - PIP_SIZE / 2, puzzle_y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
       }
     }
 
@@ -175,6 +197,15 @@ class Puzzle {
         });
       }
     }
+  }
+
+  connecting_edge(vert_1, vert_2) {
+    for (let i = 0; i < this.edges.length; i++) {
+      const { v1, v2 } = this.edges[i];
+      if (vert_1 == v1 && vert_2 == v2) return i;
+      if (vert_1 == v2 && vert_2 == v1) return i;
+    }
+    return undefined;
   }
 }
 
@@ -253,13 +284,24 @@ let mouse_y = 0;
 let mouse_button = false;
 
 window.addEventListener("mousemove", (evt) => {
+  // TODO: Split fast mouse moves into multiple `mouse_down` events
   update_mouse(evt);
+  for (const g of game.grids) {
+    g.on_mouse_move();
+  }
   frame();
 });
 window.addEventListener("mousedown", (evt) => {
   update_mouse(evt);
+  for (const g of game.grids) {
+    g.on_mouse_down();
+  }
+  frame();
 });
-window.addEventListener("mouseup", update_mouse);
+window.addEventListener("mouseup", (evt) => {
+  update_mouse(evt);
+  frame();
+});
 
 function update_mouse(evt) {
   mouse_x = evt.clientX * window.devicePixelRatio;
