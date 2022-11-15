@@ -239,7 +239,7 @@ function dice_pattern(num_pips) {
     pip_positions.push({ x: -x, y: -y });
   }
   // Add a pip in the centre for odd-numbered dice patterns
-  if (num_pips % 2 == 1)  pip_positions.push({ x: 0, y: 0 });
+  if (num_pips % 2 == 1) pip_positions.push({ x: 0, y: 0 });
 
   return pip_positions;
 }
@@ -251,14 +251,27 @@ const ctx = canvas.getContext('2d');
 
 // Create puzzle patterns
 const puzzles = [
+  // Intro
   "11",
+  "112",
   "123",
-
+  "21|1 ",
+  "11|11",
+  " 1 |1 1| 1 ",
+  "11|11|11",
+  "111|111|111",
+  
+  /* Cool set of puzzles */
   "21|12",
   "21 |12 |   ",
   "21 |12 |  2",
   "21  |12  |  2 |    ",
   "21  |12  |    |   2",
+
+  /* Misc puzzles */
+  " 1 |1 1|111",
+  "111|181|111",
+  "4224|2112|2112|4224",
 ].map((p) => new Puzzle(p));
 const game = new Game(puzzles);
 
