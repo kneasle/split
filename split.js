@@ -261,19 +261,92 @@ const puzzles = [
   "11|11|11",
   "111|111|111",
   
-  /* Cool set of puzzles */
+  // Cool set of puzzles
   "21|12",
   "21 |12 |   ",
   "21 |12 |  2",
   "21  |12  |  2 |    ",
   "21  |12  |    |   2",
+  
+  // Cool set of puzzles
+  // TODO: Do this whole set as 1+2=3 rather than 1+1=2
+  // TODO: Prune this down a bit
+  "2 1|1 2",
+  "2 2|1 1",
+  "   |2 2|1 1",
+  "2 2|   |1 1",
+  "  2| 2 |1 1",
+  "  2|12 |  1",
+  "2 2|1  |  1",
+  "22 |1  |  1",
+  "222|1  |  1",
+  "222|1 1|   ",
+  
+  // Cool set of puzzles
+  " 31|31 |1  ",
+  "331|31 |1  ",
+  " 31|31 |1 3",
+  " 31|33 |1 1",
+  
+  // Cool set of puzzles
+  "123|2 1",
+  " 2 |1 3|2 1",
+  " 1 |2 3|2 1",
 
-  /* Misc puzzles */
+  // Cool set of puzzles
+  "1 1|2 2|1 1",
+  "   |1 1|2 2|1 1",
+ 
+  // Cool set of puzzles
+  "21|21",
+  " 21| 21",
+  "221|  1",
+
+  // Cool set of puzzles
+  " 2 | 2 | 2 ",
+  " 2 | 2 |1 1",
+  "1 1| 2 |1 1",
+  "1 1|  2|1 1",
+  "1 1|1 2|  1",
+  
+  // Cool set of puzzles
+  "  2|2  |11 ",
+  "  2|   |112",
+  "  2|   |112",
+  "2 2|   |112",
+  "2 2|   |121",
+  
+  // Cool set of puzzles
+  "313|   |131",
+  "113|   |331",
+  "131|   |331",
+  "111|   |333",
+  
+  // Twizzly puzzles
+  "1  3|  5 |    |  4 |2   ", // TODO: Rotate?
+  "1   3| 2   |   4 |5   6",
+  "1   3| 4   |   2 |5   6",
+  
+  // Puzzles looking for sets
+  "1 2| 2 |  1",
+ 
+  // Misc puzzles
+  "1 2 |3 4 |    ",
+  "1 2|34 |   ",
+  "121|2 2|121",
+  " 33|   |114",
   " 1 |1 1|111",
+  "    |12 21",
   "111|181|111",
+  "1 41|4   |   4|14 1",
+  "2  2| 11 | 11 |2  2",
   "4224|2112|2112|4224",
+  "2 1 2|     |1 2 1|    |2 1 2",
 ].map((p) => new Puzzle(p));
+console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
+
+
 
 function frame() {
   render();
