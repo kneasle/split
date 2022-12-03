@@ -14,16 +14,120 @@ const PIP_SIZE = 0.1;
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.71;
 
+
+
 /// Singleton instance which handles all top-level game logic
 class Game {
   constructor(puzzles) {
+    // Puzzles
     this.puzzles = puzzles;
     this.grids = [
       new Grid(puzzles[6], 120, -300, 0),
       new Grid(puzzles[6], 120, 300, 0),
     ];
+
+    this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
+  }
+
+  /* INTERACTION */
+
+  frame() {
+    this.render();
+  }
+
+  render() {
+    let mouse_state = this.mouse_state();
+
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
+      this.grids[g_idx].draw(
+        (mouse_state && mouse_state.grid_idx === g_idx)
+          ? mouse_state
+          : undefined
+      );
+    }
+    ctx.restore();
+  }
+
+  /* INTERACTION */
+
+  on_mouse_move() {
+    if (this.selected_grid_idx !== undefined) {
+      // The user is drawing a line in `this.selected_grid_idx`
+      let mouse_state = this.mouse_state();
+      console.assert(mouse_state.grid_idx === this.selected_grid_idx);
+      this.grids[this.selected_grid_idx].update_line(mouse_state);
+    }
+  }
+
+  on_mouse_down() {
+    console.assert(!this.is_drawing_line());
+    let mouse_state = this.mouse_state();
+    if (mouse_state) {
+      this.selected_grid_idx = mouse_state.grid_idx; // Start drawing a line in the interacted grid
+      this.selected_grid().begin_line(mouse_state);
+    }
+  }
+
+  on_mouse_up() {
+    console.assert(this.is_drawing_line());
+    this.selected_grid().end_line(this.mouse_state);
+    this.selected_grid_idx = undefined; // No specific grid is selected anymore
+  }
+
+  // Find the nearest vertex to the mouse
+  mouse_state() {
+    // Find the closest vertex
+    let mouse_state = undefined;
+
+    for (let grid_idx = 0; grid_idx < this.grids.length; grid_idx++) {
+      // Skip the non-selected grid when drawing lines
+      if (this.is_drawing_line() && this.selected_grid_idx !== grid_idx) continue;
+
+      let grid = this.grids[grid_idx];
+      // Transform mouse coordinates into the puzzle's coord space
+      let local_x = (mouse_x - canvas.width  / 2 - grid.position.x) / grid.scale + grid.puzzle.width  / 2;
+      let local_y = (mouse_y - canvas.height / 2 - grid.position.y) / grid.scale + grid.puzzle.height / 2;
+
+      for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
+        let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
+        let dX = local_x - vert_x;
+        let dY = local_y - vert_y;
+        let dist = Math.sqrt(dX * dX + dY * dY);
+        if (mouse_state === undefined || dist < mouse_state.vert_distance) {
+          mouse_state = {
+            local_x, local_y,
+            vert_idx,
+            grid_idx,
+            vert_distance: dist,
+          };
+        }
+      }
+    }
+
+    // Check if mouse is too far away, but only when not drawing lines
+    if (!this.is_drawing_line() && mouse_state && mouse_state.vert_distance > VERTEX_INTERACTION_RADIUS)
+      mouse_state = undefined;
+
+    return mouse_state;
+  }
+
+  /* UTILS */
+
+  is_drawing_line() {
+    return this.selected_grid_idx !== undefined;
+  }
+
+  selected_grid() {
+    return this.grids[this.selected_grid_idx];
   }
 }
+
+
 
 /// An instance of a `Puzzle` on the screen
 class Grid {
@@ -36,46 +140,14 @@ class Grid {
     this.line = [];
   }
 
-  /// Returns useful information about the cursor's location
-  mouse_state() {
-    // Transform mouse coordinates into the puzzle's coord space
-    let local_x = (mouse_x - canvas.width  / 2 - this.position.x) / this.scale + this.puzzle.width  / 2;
-    let local_y = (mouse_y - canvas.height / 2 - this.position.y) / this.scale + this.puzzle.height / 2;
-
-    // Find the closest vertex
-    let nearest_vert_idx = undefined;
-    let nearest_vert_distance = VERTEX_INTERACTION_RADIUS;
-    for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
-      let { x: vert_x, y: vert_y } = this.puzzle.verts[v_idx];
-      let dX = local_x - vert_x;
-      let dY = local_y - vert_y;
-      let dist = Math.sqrt(dX * dX + dY * dY);
-      if (dist < nearest_vert_distance) {
-        nearest_vert_idx = v_idx;
-        nearest_vert_distance = dist;
-      }
-    }
-
-    return {
-      local_x, local_y,
-      nearest_vert_idx,
-      nearest_vert_distance,
-    };
-  }
-
-  /// Called when the mouse is clicked (i.e. a line should start being drawn)
-  on_mouse_down() {
-    let mouse = this.mouse_state();
-    if (mouse.nearest_vert_idx !== undefined) {
-      this.line = [mouse.nearest_vert_idx];
+  begin_line(mouse) {
+    if (mouse.vert_idx !== undefined) {
+      this.line = [mouse.vert_idx];
     }
   }
 
-  /// Called when the mouse moves
-  on_mouse_move() {
-    let mouse = this.mouse_state();
-
-    let new_vert = mouse.nearest_vert_idx;
+  update_line(mouse) {
+    let new_vert = mouse.vert_idx;
     let last_vert = this.line[this.line.length - 1];
     let penultimate_vert = this.line[this.line.length - 2];
 
@@ -93,9 +165,11 @@ class Grid {
     }
   }
 
-  draw() {
-    let mouse = this.mouse_state();
+  end_line(mouse) {
+    console.log("todo!");
+  }
 
+  draw(mouse) {
     ctx.save();
     ctx.translate(this.position.x, this.position.y);
     ctx.scale(this.scale, this.scale);
@@ -124,7 +198,7 @@ class Grid {
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = v_idx === mouse.nearest_vert_idx ? LINE_COLOR : GRID_COLOR;
+      ctx.fillStyle = (mouse !== undefined && v_idx === mouse.vert_idx) ? LINE_COLOR : GRID_COLOR;
       ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
     // Line
@@ -207,18 +281,6 @@ class Puzzle {
     }
     return undefined;
   }
-}
-
-function render() {
-  ctx.fillStyle = BG_COLOR;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  for (const g of game.grids) {
-    g.draw();
-  }
-  ctx.restore();
 }
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
@@ -348,19 +410,12 @@ const game = new Game(puzzles);
 
 
 
-function frame() {
-  render();
-  
-  // window.requestAnimationFrame(frame);
-}
-
 window.addEventListener("resize", on_resize);
 function on_resize() {
   // Set the canvas size according to its new on-screen size
   var rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
-  render(); // TODO: Remove this once we have an animation loop
 }
 
 /* MOUSE HANDLING */
@@ -372,21 +427,15 @@ let mouse_button = false;
 window.addEventListener("mousemove", (evt) => {
   // TODO: Split fast mouse moves into multiple `mouse_down` events
   update_mouse(evt);
-  for (const g of game.grids) {
-    g.on_mouse_move();
-  }
-  frame();
+  game.on_mouse_move();
 });
 window.addEventListener("mousedown", (evt) => {
   update_mouse(evt);
-  for (const g of game.grids) {
-    g.on_mouse_down();
-  }
-  frame();
+  game.on_mouse_down();
 });
 window.addEventListener("mouseup", (evt) => {
   update_mouse(evt);
-  frame();
+  game.on_mouse_up();
 });
 
 function update_mouse(evt) {
@@ -395,7 +444,11 @@ function update_mouse(evt) {
   mouse_button = evt.buttons != 0;
 };
 
-/* INIT GAME ON STARTUP */
+/* START GAMELOOP */
 
 on_resize();
+function frame() {
+  game.frame();
+  window.requestAnimationFrame(frame);
+}
 frame();
