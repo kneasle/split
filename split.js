@@ -36,7 +36,7 @@ class Game {
   }
 
   render() {
-    let mouse_state = this.mouse_state();
+    let interaction = this.interaction();
 
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -45,8 +45,8 @@ class Game {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
       this.grids[g_idx].draw(
-        (mouse_state && mouse_state.grid_idx === g_idx)
-          ? mouse_state
+        (interaction && interaction.grid_idx === g_idx)
+          ? interaction
           : undefined
       );
     }
@@ -58,31 +58,31 @@ class Game {
   on_mouse_move() {
     if (this.selected_grid_idx !== undefined) {
       // The user is drawing a line in `this.selected_grid_idx`
-      let mouse_state = this.mouse_state();
-      console.assert(mouse_state.grid_idx === this.selected_grid_idx);
-      this.grids[this.selected_grid_idx].update_line(mouse_state);
+      let interaction = this.interaction();
+      console.assert(interaction.grid_idx === this.selected_grid_idx);
+      this.grids[this.selected_grid_idx].update_line(interaction);
     }
   }
 
   on_mouse_down() {
     console.assert(!this.is_drawing_line());
-    let mouse_state = this.mouse_state();
-    if (mouse_state) {
-      this.selected_grid_idx = mouse_state.grid_idx; // Start drawing a line in the interacted grid
-      this.selected_grid().begin_line(mouse_state);
+    let interaction = this.interaction();
+    if (interaction) {
+      this.selected_grid_idx = interaction.grid_idx; // Start drawing a line in the interacted grid
+      this.selected_grid().begin_line(interaction);
     }
   }
 
   on_mouse_up() {
     console.assert(this.is_drawing_line());
-    this.selected_grid().end_line(this.mouse_state);
+    this.selected_grid().end_line(this.interaction);
     this.selected_grid_idx = undefined; // No specific grid is selected anymore
   }
 
-  // Find the nearest vertex to the mouse
-  mouse_state() {
-    // Find the closest vertex
-    let mouse_state = undefined;
+  // Find out what the mouse must be interacting with (in this case, the user is defined to be
+  // interacting with the nearest vertex to the mouse).
+  interaction() {
+    let interaction = undefined;
 
     for (let grid_idx = 0; grid_idx < this.grids.length; grid_idx++) {
       // Skip the non-selected grid when drawing lines
@@ -98,8 +98,8 @@ class Game {
         let dX = local_x - vert_x;
         let dY = local_y - vert_y;
         let dist = Math.sqrt(dX * dX + dY * dY);
-        if (mouse_state === undefined || dist < mouse_state.vert_distance) {
-          mouse_state = {
+        if (interaction === undefined || dist < interaction.vert_distance) {
+          interaction = {
             local_x, local_y,
             vert_idx,
             grid_idx,
@@ -110,10 +110,10 @@ class Game {
     }
 
     // Check if mouse is too far away, but only when not drawing lines
-    if (!this.is_drawing_line() && mouse_state && mouse_state.vert_distance > VERTEX_INTERACTION_RADIUS)
-      mouse_state = undefined;
+    if (!this.is_drawing_line() && interaction && interaction.vert_distance > VERTEX_INTERACTION_RADIUS)
+      interaction = undefined;
 
-    return mouse_state;
+    return interaction;
   }
 
   /* UTILS */
@@ -140,14 +140,14 @@ class Grid {
     this.line = [];
   }
 
-  begin_line(mouse) {
-    if (mouse.vert_idx !== undefined) {
-      this.line = [mouse.vert_idx];
+  begin_line(interaction) {
+    if (interaction.vert_idx !== undefined) {
+      this.line = [interaction.vert_idx];
     }
   }
 
-  update_line(mouse) {
-    let new_vert = mouse.vert_idx;
+  update_line(interaction) {
+    let new_vert = interaction.vert_idx;
     let last_vert = this.line[this.line.length - 1];
     let penultimate_vert = this.line[this.line.length - 2];
 
@@ -165,11 +165,11 @@ class Grid {
     }
   }
 
-  end_line(mouse) {
+  end_line(interaction) {
     console.log("todo!");
   }
 
-  draw(mouse) {
+  draw(interaction) {
     ctx.save();
     ctx.translate(this.position.x, this.position.y);
     ctx.scale(this.scale, this.scale);
@@ -198,7 +198,7 @@ class Grid {
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = (mouse !== undefined && v_idx === mouse.vert_idx) ? LINE_COLOR : GRID_COLOR;
+      ctx.fillStyle = (interaction && v_idx === interaction.vert_idx) ? LINE_COLOR : GRID_COLOR;
       ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
     // Line
