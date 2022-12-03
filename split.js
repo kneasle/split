@@ -420,8 +420,10 @@ function on_resize() {
 
 /* MOUSE HANDLING */
 
-let mouse_x = 0;
-let mouse_y = 0;
+// We start the mouse miles off the screen so that vertices close to the top-left corner of the
+// screen can't be selected before the user moves their mouse into the window.
+let mouse_x = -10000;
+let mouse_y = -10000;
 let mouse_button = false;
 
 window.addEventListener("mousemove", (evt) => {
