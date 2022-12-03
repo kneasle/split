@@ -11,6 +11,9 @@ const VERTEX_SIZE = 0.3;
 const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.1;
+// Animation
+const PIP_ANIMATION_TIME = 0.3; // Seconds
+const PIP_ANIMATION_SPREAD = 0.3; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.71;
 
@@ -69,14 +72,15 @@ class Game {
     let interaction = this.interaction();
     if (interaction) {
       this.selected_grid_idx = interaction.grid_idx; // Start drawing a line in the interacted grid
-      this.selected_grid().begin_line(interaction);
+      this.selected_grid().begin_drawing_line(interaction);
     }
   }
 
   on_mouse_up() {
-    console.assert(this.is_drawing_line());
-    this.selected_grid().end_line(this.interaction);
-    this.selected_grid_idx = undefined; // No specific grid is selected anymore
+    if (this.is_drawing_line()) {
+      this.selected_grid().finish_drawing_line(this.interaction);
+      this.selected_grid_idx = undefined; // No specific grid is selected anymore
+    }
   }
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
@@ -133,16 +137,30 @@ class Game {
 class Grid {
   constructor(puzzle, scale, x, y) {
     this.puzzle = puzzle;
+    // Transform
     this.scale = scale;
     this.position = { x, y };
-
     // List of vertex indices which make up the line being drawn
     this.line = [];
+
+    // Create pips
+    this.pips = [];
+    for (let c = 0; c < this.puzzle.cells.length; c++) {
+      const cell = this.puzzle.cells[c];
+      for (let p = 0; p < cell.pips; p++) {
+        const unsolved_state = this.puzzle.pip_coords(c, p);
+        this.pips.push(new Pip(c, unsolved_state));
+      }
+    }
   }
 
-  begin_line(interaction) {
+  begin_drawing_line(interaction) {
     if (interaction.vert_idx !== undefined) {
       this.line = [interaction.vert_idx];
+      // Animate all pips back to their start locations
+      for (const pip of this.pips) {
+        pip.animate_to(pip.unsolved_state);
+      }
     }
   }
 
@@ -165,8 +183,12 @@ class Grid {
     }
   }
 
-  end_line(interaction) {
+  finish_drawing_line(interaction) {
     console.log("todo!");
+    // Animate all pips to their solved positions
+    for (const pip of this.pips) {
+      pip.animate_to({ x: 0, y: 0 });
+    }
   }
 
   draw(interaction) {
@@ -213,15 +235,42 @@ class Grid {
 
     // Pips
     ctx.fillStyle = PIP_COLOR;
-    for (const c of this.puzzle.cells) {
-      for (const { x, y } of dice_pattern(c.pips)) {
-        let puzzle_x = c.centre.x + x * PIP_PATTERN_RADIUS;
-        let puzzle_y = c.centre.y + y * PIP_PATTERN_RADIUS;
-        ctx.fillRect(puzzle_x - PIP_SIZE / 2, puzzle_y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
-      }
+    for (const pip of this.pips) {
+      const { x, y } = pip.current_state();
+      ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
     }
 
     ctx.restore();
+  }
+}
+
+class Pip {
+  constructor(source_cell_idx, unsolved_state) {
+    // Location of the pip in the unsolved puzzle
+    this.source_cell_idx = source_cell_idx;
+    this.unsolved_state = unsolved_state;
+
+    // Start the pips animating from unsolved to unsolved
+    this.anim_source = unsolved_state;
+    this.anim_target = unsolved_state;
+    this.anim_start_time = Date.now();
+  }
+
+  animate_to(target_state) {
+    this.anim_source = this.current_state();
+    this.anim_target = target_state;
+    this.anim_start_time = Date.now()
+       + Math.random() * 1000 * PIP_ANIMATION_SPREAD * PIP_ANIMATION_TIME;
+  }
+
+  current_state() {
+    let anim_factor = (Date.now() - this.anim_start_time) / 1000 / PIP_ANIMATION_TIME;
+    anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
+    anim_factor = ease_in_out(anim_factor); // Easing
+    return {
+      x: lerp(this.anim_source.x, this.anim_target.x, anim_factor),
+      y: lerp(this.anim_source.y, this.anim_target.y, anim_factor),
+    };
   }
 }
 
@@ -271,6 +320,15 @@ class Puzzle {
         });
       }
     }
+  }
+
+  pip_coords(cell_idx, pip_idx) {
+    const cell = this.cells[cell_idx];
+    const { x, y } = dice_pattern(cell.pips)[pip_idx];
+    return {
+      x: cell.centre.x + x * PIP_PATTERN_RADIUS,
+      y: cell.centre.y + y * PIP_PATTERN_RADIUS,
+    };
   }
 
   connecting_edge(vert_1, vert_2) {
@@ -421,7 +479,7 @@ function on_resize() {
 /* MOUSE HANDLING */
 
 // We start the mouse miles off the screen so that vertices close to the top-left corner of the
-// screen can't be selected before the user moves their mouse into the window.
+// screen can't be erroneously selected before the user moves their mouse into the window.
 let mouse_x = -10000;
 let mouse_y = -10000;
 let mouse_button = false;
@@ -454,3 +512,13 @@ function frame() {
   window.requestAnimationFrame(frame);
 }
 frame();
+
+/* UTILS */
+
+function ease_in_out(x) {
+  return (3 - 2 * x) * x * x;
+}
+
+function lerp(a, b, t) {
+  return a * (1 - t) + b * t;
+}
