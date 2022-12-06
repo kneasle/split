@@ -145,6 +145,11 @@ class Grid {
     this.position = { x, y };
     // List of vertex indices which make up the line being drawn
     this.line = [];
+    // For every `Grid`, `solution` is always in one of three states:
+    // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
+    // 2) `this.solution.is_valid === true`: the solution is valid
+    // 3) `this.solution.is_valid === false`: the solution is invalid
+    this.solution = undefined;
 
     // Create pips
     this.pips = [];
@@ -160,6 +165,7 @@ class Grid {
   begin_drawing_line(interaction) {
     if (interaction.vert_idx !== undefined) {
       this.line = [interaction.vert_idx];
+      this.solution = undefined;
       // Animate all pips back to their start locations
       for (const pip of this.pips) {
         pip.animate_to(pip.unsolved_state);
@@ -180,6 +186,12 @@ class Grid {
       return; // Verts aren't connected
     }
 
+    // Don't allow the user to add a line segment twice
+    for (let i = 0; i < this.line.length - 2; i++) {
+      if (this.line[i] === last_vert && this.line[i + 1] === new_vert) return;
+      if (this.line[i] === new_vert && this.line[i + 1] === last_vert) return;
+    }
+
     if (new_vert === penultimate_vert) {
       this.line.pop(); // Moved backward, 'unwind' the line
     } else {
@@ -190,12 +202,15 @@ class Grid {
   finish_drawing_line(interaction) {
     const is_line_loop = this.line.length > 1 &&
       this.line[0] === this.line[this.line.length - 1];
-    if (is_line_loop) {
-      // Check the solvedness of the puzzle
-      // Animate all pips to their solved positions
-      for (const pip of this.pips) {
-        pip.animate_to({ x: 0, y: 0 });
-      }
+    if (!is_line_loop) return; // Line does not form a loop
+
+    // TODO: Check the solvedness of the puzzle
+    this.solution = this.puzzle.get_solution(this.line);
+    console.log(this.solution);
+
+    // Animate all pips to their solved positions
+    for (const pip of this.pips) {
+      pip.animate_to({ x: 0, y: 0 });
     }
   }
 
@@ -323,17 +338,97 @@ class Puzzle {
     this.cells = [];
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        let tl = vert_idx(x, y);
-        let tr = vert_idx(x + 1, y);
-        let br = vert_idx(x + 1, y + 1);
-        let bl = vert_idx(x, y + 1);
+        // Get the vertices surrounding this cell
+        const tl = vert_idx(x, y);
+        const tr = vert_idx(x + 1, y);
+        const br = vert_idx(x + 1, y + 1);
+        const bl = vert_idx(x, y + 1);
+        // Get the cells which neighbour this one as well as the corresponding edges
+        const possible_neighbours = [
+          { v1: tl, v2: tr, dx: 0, dy: -1 }, // top
+          { v1: tr, v2: br, dx: 1, dy: 0 }, // right
+          { v1: br, v2: bl, dx: 0, dy: 1 }, // bottom
+          { v1: bl, v2: tl, dx: -1, dy: 0 }, // left
+        ];
+        const neighbours = [];
+        for (const { v1, v2, dx, dy } of possible_neighbours) {
+          let new_x = x + dx;
+          let new_y = y + dy;
+          // Neighbour is only valid if the opposite cell is actually in the grid
+          if (new_x < 0 || new_x >= this.width || new_y < 0 || new_y >= this.height) continue;
+          let cell_idx = new_y * this.width + new_x;
+          // Determine the edge which lies between this cell and its neighbour
+          const edge_idx = this.connecting_edge(v1, v2);
+          console.assert(edge_idx !== undefined);
+          // Add edge
+          neighbours.push({ edge_idx, cell_idx });
+        }
+
         this.cells.push({
           verts: [tl, tr, br, bl],
           centre: { x: x + 0.5, y: y + 0.5 },
           pips: parseInt(pip_lines[y][x]) || 0,
+          neighbours,
         });
       }
     }
+  }
+
+  get_solution(line) {
+    console.assert(line[0] === line[line.length - 1]);
+    // Determine which edges are in the line
+    let is_edge_in_line = [];
+    for (const _ of this.edges) is_edge_in_line.push(false);
+    for (let i = 0; i < line.length - 1; i++) {
+      const edge_idx = this.connecting_edge(line[i], line[i + 1]);
+      is_edge_in_line[edge_idx] = true;
+    }
+
+    // Use the line to split the cells into regions (i.e. strongly connected components of the
+    // (dual of the) cell graph where edges under the line are removed)
+    let is_cell_in_region = [];
+    for (const _ of this.cells) is_cell_in_region.push(false);
+    let regions = [];
+    while (true) {
+      // Find a cell which isn't yet in a region
+      let region_start_cell = undefined;
+      for (let i = 0; i < this.cells.length; i++) {
+        if (!is_cell_in_region[i]) {
+          region_start_cell = i;
+          break;
+        }
+      }
+      // If no such cell exists, all cells are in regions and we're done
+      if (region_start_cell === undefined) break;
+      // Take this new cell and explore its entire region using DFS
+      let cells_in_region = [];
+      let pips_in_region = 0;
+      let frontier = [region_start_cell];
+      while (frontier.length > 0) {
+        let next_cell_idx = frontier.pop();
+        let next_cell = this.cells[next_cell_idx];
+        if (is_cell_in_region[next_cell_idx]) continue; // Cell has already been explored
+        // Add cell to this region
+        is_cell_in_region[next_cell_idx] = true;
+        cells_in_region.push(next_cell_idx);
+        pips_in_region += next_cell.pips;
+        // Add cell's neighbours to the frontier
+        for (const { edge_idx, cell_idx } of next_cell.neighbours) {
+          if (is_edge_in_line[edge_idx]) continue; // Can't connect region over line
+          frontier.push(cell_idx);
+        }
+      }
+      // Once BFS has fully explored the region, add this region as complete
+      regions.push({ pips: pips_in_region, cells: cells_in_region });
+    }
+
+    // Use the pip counts to check if the regions actually make a valid solution
+    const pip_counts = regions.map((r) => r.pips).filter((pips) => pips > 0);
+    const pip_group_size = pip_counts[0];
+    const is_solved = pip_counts.length > 1 && pip_counts.every((p) => p == pip_group_size);
+
+    // Package the solution and return
+    return { is_solved, pip_group_size, regions };
   }
 
   pip_coords(cell_idx, pip_idx) {
@@ -348,8 +443,8 @@ class Puzzle {
   connecting_edge(vert_1, vert_2) {
     for (let i = 0; i < this.edges.length; i++) {
       const { v1, v2 } = this.edges[i];
-      if (vert_1 == v1 && vert_2 == v2) return i;
-      if (vert_1 == v2 && vert_2 == v1) return i;
+      if (vert_1 === v1 && vert_2 === v2) return i;
+      if (vert_1 === v2 && vert_2 === v1) return i;
     }
     return undefined;
   }
