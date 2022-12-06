@@ -169,11 +169,13 @@ class Grid {
   begin_drawing_line(interaction) {
     if (interaction.vert_idx !== undefined) {
       this.line = [interaction.vert_idx];
-      this.solution = undefined;
-      // Animate all pips back to their start locations
-      for (const pip of this.pips) {
-        pip.animate_to(pip.unsolved_state);
+      if (this.solution !== undefined) {
+        // Animate all pips back to their start locations
+        for (const pip of this.pips) {
+          pip.animate_to(pip.unsolved_state);
+        }
       }
+      this.solution = undefined;
     }
   }
 
