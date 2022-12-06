@@ -10,7 +10,7 @@ const PIP_COLOR = "#fff";
 const VERTEX_SIZE = 0.3;
 const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
-const PIP_SIZE = 0.1;
+const PIP_SIZE = 0.12;
 // Animation
 const PIP_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.7; // Factor of `PIP_ANIMATION_TIME`
