@@ -6,13 +6,15 @@ const CELL_COLOR = "#070";
 const GRID_COLOR = "#000";
 const LINE_COLOR = "#fff";
 const PIP_COLOR = "#fff";
+const CORRECT_COLOR = "#0f0";
+const INCORRECT_COLOR = "#f77";
 // Sizes
 const VERTEX_SIZE = 0.3;
 const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Animation
-const PIP_ANIMATION_TIME = 0.3; // Seconds
+const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.7; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.71;
@@ -64,7 +66,6 @@ class Game {
   }
 
   on_mouse_down() {
-    console.assert(!this.is_drawing_line());
     let interaction = this.interaction();
     if (interaction) {
       this.selected_grid_idx = interaction.grid_idx; // Start drawing a line in the interacted grid
@@ -159,6 +160,7 @@ class Grid {
       const pip_idxs = [];
       for (let p = 0; p < cell.pips; p++) {
         const unsolved_state = this.puzzle.pip_coords(c, p);
+        unsolved_state.color = PIP_COLOR;
         pip_idxs.push(this.pips.length);
         this.pips.push(new Pip(c, unsolved_state));
       }
@@ -211,6 +213,7 @@ class Grid {
       this.line[0] === this.line[this.line.length - 1];
     if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
     this.solution = this.puzzle.get_solution(this.line);
+    this.solution.time = Date.now();
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
@@ -246,7 +249,7 @@ class Grid {
         // Animate them to their new positions
         for (let p = 0; p < num_pips; p++) {
           const { x, y } = this.puzzle.pip_coords(cell_idx, p, num_pips);
-          this.pips[pip_idxs[p]].animate_to({ x, y });
+          this.pips[pip_idxs[p]].animate_to({ x, y, color: this.solution_color() });
         }
       }
     }
@@ -257,6 +260,14 @@ class Grid {
     ctx.translate(this.position.x, this.position.y);
     ctx.scale(this.scale, this.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
+
+    // Handle solution animation (mainly colours)
+    const solution_anim_factor = this.solution
+      ? get_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME)
+      : 0;
+    const line_color = to_canvas_color(
+      lerp_color(LINE_COLOR, this.solution_color(), solution_anim_factor),
+    );
 
     // Cell
     ctx.fillStyle = CELL_COLOR;
@@ -281,7 +292,7 @@ class Grid {
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = (interaction && v_idx === interaction.vert_idx) ? LINE_COLOR : GRID_COLOR;
+      ctx.fillStyle = (interaction && v_idx === interaction.vert_idx) ? line_color : GRID_COLOR;
       ctx.fillRect(
         x - VERTEX_SIZE / 2,
         y - VERTEX_SIZE / 2,
@@ -291,7 +302,7 @@ class Grid {
     }
     // Line
     ctx.lineWidth = EDGE_WIDTH;
-    ctx.strokeStyle = LINE_COLOR;
+    ctx.strokeStyle = line_color;
     ctx.beginPath();
     for (const vert_idx of this.line) {
       let vert = this.puzzle.verts[vert_idx];
@@ -300,13 +311,18 @@ class Grid {
     ctx.stroke();
 
     // Pips
-    ctx.fillStyle = PIP_COLOR;
     for (const pip of this.pips) {
-      const { x, y } = pip.current_state();
+      const { x, y, color } = pip.current_state();
+      ctx.fillStyle = to_canvas_color(color);
       ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
     }
 
     ctx.restore();
+  }
+
+  solution_color() {
+    const is_correct = this.solution && this.solution.is_correct;
+    return is_correct ? CORRECT_COLOR : INCORRECT_COLOR;
   }
 }
 
@@ -326,16 +342,15 @@ class Pip {
     this.anim_source = this.current_state();
     this.anim_target = target_state;
     this.anim_start_time = Date.now() +
-      Math.random() * 1000 * PIP_ANIMATION_SPREAD * PIP_ANIMATION_TIME;
+      Math.random() * 1000 * PIP_ANIMATION_SPREAD * SOLVE_ANIMATION_TIME;
   }
 
   current_state() {
-    let anim_factor = (Date.now() - this.anim_start_time) / 1000 / PIP_ANIMATION_TIME;
-    anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
-    anim_factor = ease_in_out(anim_factor); // Easing
+    const anim_factor = get_anim_factor(this.anim_start_time, SOLVE_ANIMATION_TIME);
     return {
       x: lerp(this.anim_source.x, this.anim_target.x, anim_factor),
       y: lerp(this.anim_source.y, this.anim_target.y, anim_factor),
+      color: lerp_color(this.anim_source.color, this.anim_target.color, anim_factor),
     };
   }
 }
@@ -462,10 +477,10 @@ class Puzzle {
     // Use the pip counts to check if the regions actually make a valid solution
     const pip_counts = regions.map((r) => r.pips).filter((pips) => pips > 0);
     const pip_group_size = pip_counts[0];
-    const is_solved = pip_counts.length > 1 && pip_counts.every((p) => p == pip_group_size);
+    const is_correct = pip_counts.length > 1 && pip_counts.every((p) => p == pip_group_size);
 
     // Package the solution and return
-    return { is_solved, pip_group_size, regions };
+    return { is_correct, pip_group_size, regions };
   }
 
   pip_coords(cell_idx, pip_idx, num_pips) {
@@ -660,10 +675,54 @@ frame();
 
 /* UTILS */
 
+function get_anim_factor(start_time, anim_time) {
+  let anim_factor = (Date.now() - start_time) / 1000 / anim_time;
+  anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
+  anim_factor = ease_in_out(anim_factor); // Easing
+  return anim_factor;
+}
+
 function ease_in_out(x) {
   return (3 - 2 * x) * x * x;
 }
 
 function lerp(a, b, t) {
   return a * (1 - t) + b * t;
+}
+
+function lerp_color(c1, c2, t) {
+  let { r: r1, g: g1, b: b1 } = parse_color(c1);
+  let { r: r2, g: g2, b: b2 } = parse_color(c2);
+  let r = lerp(r1, r2, t);
+  let g = lerp(g1, g2, t);
+  let b = lerp(b1, b2, t);
+  return { r, g, b };
+}
+
+function parse_color(color) {
+  if (typeof color === "object") return color;
+
+  // Parse color as a hex string
+  let r, g, b, multiplier;
+  if (color.length === 4) {
+    r = color[1];
+    g = color[2];
+    b = color[3];
+    multiplier = 0x11;
+  }
+  if (color.length === 6) {
+    r = color.slice(1, 3);
+    g = color.slice(3, 5);
+    b = color.slice(5, 7);
+    multiplier = 1;
+  }
+  return {
+    r: parseInt(r, 16) * multiplier,
+    g: parseInt(g, 16) * multiplier,
+    b: parseInt(b, 16) * multiplier,
+  };
+}
+
+function to_canvas_color(color) {
+  return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
 }
