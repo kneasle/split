@@ -23,8 +23,8 @@ class Game {
     // Puzzles
     this.puzzles = puzzles;
     this.grids = [
-      new Grid(puzzles[6], 120, -300, 0),
-      new Grid(puzzles[6], 120, 300, 0),
+      new Grid(puzzles[56], 120, -300, 0),
+      new Grid(puzzles[56], 120, 300, 0),
     ];
 
     this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
@@ -151,14 +151,18 @@ class Grid {
     // 3) `this.solution.is_valid === false`: the solution is invalid
     this.solution = undefined;
 
-    // Create pips
+    // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
+    this.pip_idxs_per_cell = [];
     for (let c = 0; c < this.puzzle.cells.length; c++) {
       const cell = this.puzzle.cells[c];
+      const pip_idxs = [];
       for (let p = 0; p < cell.pips; p++) {
         const unsolved_state = this.puzzle.pip_coords(c, p);
+        pip_idxs.push(this.pips.length);
         this.pips.push(new Pip(c, unsolved_state));
       }
+      this.pip_idxs_per_cell.push(pip_idxs);
     }
   }
 
@@ -199,18 +203,50 @@ class Grid {
     }
   }
 
-  finish_drawing_line(interaction) {
+  finish_drawing_line(_interaction) {
+    // Check the user's solution
     const is_line_loop = this.line.length > 1 &&
       this.line[0] === this.line[this.line.length - 1];
-    if (!is_line_loop) return; // Line does not form a loop
-
-    // TODO: Check the solvedness of the puzzle
+    if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
     this.solution = this.puzzle.get_solution(this.line);
-    console.log(this.solution);
 
-    // Animate all pips to their solved positions
-    for (const pip of this.pips) {
-      pip.animate_to({ x: 0, y: 0 });
+    // Decide where to move the pips
+    for (const region of this.solution.regions) {
+      if (region.pips === 0) continue;
+      // Compute the centre of the region
+      let total_x = 0;
+      let total_y = 0;
+      for (const c of region.cells) {
+        let cell = this.puzzle.cells[c];
+        total_x += cell.centre.x;
+        total_y += cell.centre.y;
+      }
+      let avg_x = total_x / region.cells.length;
+      let avg_y = total_y / region.cells.length;
+      // Sort cells by their distance from the centre of the region.  This is the order that we'll
+      // add the pips
+      let _this = this;
+      function cell_dist(cell_idx) {
+        let cell = _this.puzzle.cells[cell_idx];
+        let dx = cell.centre.x - avg_x;
+        let dy = cell.centre.y - avg_y;
+        return dx * dx + dy * dy;
+      }
+      const cells_to_add_pips_to = region.cells.sort((c1, c2) => cell_dist(c1) - cell_dist(c2));
+
+      // Group pips into cells
+      let pip_idxs_in_region = region.cells.flatMap((idx) => this.pip_idxs_per_cell[idx]);
+      for (const cell_idx of cells_to_add_pips_to) {
+        // Reserve up to 10 pips to go in this cell
+        const num_pips = Math.min(pip_idxs_in_region.length, 10);
+        const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
+        pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
+        // Animate them to their new positions
+        for (let p = 0; p < num_pips; p++) {
+          const { x, y } = this.puzzle.pip_coords(cell_idx, p, num_pips);
+          this.pips[pip_idxs[p]].animate_to({ x, y });
+        }
+      }
     }
   }
 
@@ -292,8 +328,7 @@ class Pip {
   }
 
   current_state() {
-    let anim_factor = (Date.now() - this.anim_start_time) / 1000 /
-      PIP_ANIMATION_TIME;
+    let anim_factor = (Date.now() - this.anim_start_time) / 1000 / PIP_ANIMATION_TIME;
     anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
     anim_factor = ease_in_out(anim_factor); // Easing
     return {
@@ -431,9 +466,9 @@ class Puzzle {
     return { is_solved, pip_group_size, regions };
   }
 
-  pip_coords(cell_idx, pip_idx) {
+  pip_coords(cell_idx, pip_idx, num_pips) {
     const cell = this.cells[cell_idx];
-    const { x, y } = dice_pattern(cell.pips)[pip_idx];
+    const { x, y } = dice_pattern(num_pips || cell.pips)[pip_idx];
     return {
       x: cell.centre.x + x * PIP_PATTERN_RADIUS,
       y: cell.centre.y + y * PIP_PATTERN_RADIUS,
