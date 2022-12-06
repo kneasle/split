@@ -1,11 +1,11 @@
 /* Game code for Split */
 
 // Colors
-const   BG_COLOR = "#030";
+const BG_COLOR = "#030";
 const CELL_COLOR = "#070";
 const GRID_COLOR = "#000";
 const LINE_COLOR = "#fff";
-const  PIP_COLOR = "#fff";
+const PIP_COLOR = "#fff";
 // Sizes
 const VERTEX_SIZE = 0.3;
 const EDGE_WIDTH = 0.15;
@@ -13,11 +13,9 @@ const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.1;
 // Animation
 const PIP_ANIMATION_TIME = 0.3; // Seconds
-const PIP_ANIMATION_SPREAD = 0.3; // Factor of `PIP_ANIMATION_TIME`
+const PIP_ANIMATION_SPREAD = 0.7; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.71;
-
-
 
 /// Singleton instance which handles all top-level game logic
 class Game {
@@ -48,9 +46,7 @@ class Game {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
       this.grids[g_idx].draw(
-        (interaction && interaction.grid_idx === g_idx)
-          ? interaction
-          : undefined
+        (interaction && interaction.grid_idx === g_idx) ? interaction : undefined,
       );
     }
     ctx.restore();
@@ -79,7 +75,7 @@ class Game {
   on_mouse_up() {
     if (this.is_drawing_line()) {
       this.selected_grid().finish_drawing_line(this.interaction);
-      this.selected_grid_idx = undefined; // No specific grid is selected anymore
+      this.selected_grid_idx = undefined; // No line being drawn => no grid selected
     }
   }
 
@@ -90,12 +86,16 @@ class Game {
 
     for (let grid_idx = 0; grid_idx < this.grids.length; grid_idx++) {
       // Skip the non-selected grid when drawing lines
-      if (this.is_drawing_line() && this.selected_grid_idx !== grid_idx) continue;
+      if (this.is_drawing_line() && this.selected_grid_idx !== grid_idx) {
+        continue;
+      }
 
       let grid = this.grids[grid_idx];
       // Transform mouse coordinates into the puzzle's coord space
-      let local_x = (mouse_x - canvas.width  / 2 - grid.position.x) / grid.scale + grid.puzzle.width  / 2;
-      let local_y = (mouse_y - canvas.height / 2 - grid.position.y) / grid.scale + grid.puzzle.height / 2;
+      let local_x = (mouse_x - canvas.width / 2 - grid.position.x) / grid.scale +
+        grid.puzzle.width / 2;
+      let local_y = (mouse_y - canvas.height / 2 - grid.position.y) / grid.scale +
+        grid.puzzle.height / 2;
 
       for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
         let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
@@ -104,7 +104,8 @@ class Game {
         let dist = Math.sqrt(dX * dX + dY * dY);
         if (interaction === undefined || dist < interaction.vert_distance) {
           interaction = {
-            local_x, local_y,
+            local_x,
+            local_y,
             vert_idx,
             grid_idx,
             vert_distance: dist,
@@ -114,8 +115,12 @@ class Game {
     }
 
     // Check if mouse is too far away, but only when not drawing lines
-    if (!this.is_drawing_line() && interaction && interaction.vert_distance > VERTEX_INTERACTION_RADIUS)
+    if (
+      !this.is_drawing_line() && interaction &&
+      interaction.vert_distance > VERTEX_INTERACTION_RADIUS
+    ) {
       interaction = undefined;
+    }
 
     return interaction;
   }
@@ -130,8 +135,6 @@ class Game {
     return this.grids[this.selected_grid_idx];
   }
 }
-
-
 
 /// An instance of a `Puzzle` on the screen
 class Grid {
@@ -173,21 +176,26 @@ class Grid {
     if (!mouse_button) return; // User is not dragging
     if (new_vert === undefined) return; // Mouse not close enough to a vert
     if (new_vert === last_vert) return; // Still on last vert
-    if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined)
-       return; // Verts aren't connected
+    if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined) {
+      return; // Verts aren't connected
+    }
 
     if (new_vert === penultimate_vert) {
-     this.line.pop(); // Moved backward, 'unwind' the line
+      this.line.pop(); // Moved backward, 'unwind' the line
     } else {
       this.line.push(new_vert); // Moved forward, 'extend' the line
     }
   }
 
   finish_drawing_line(interaction) {
-    console.log("todo!");
-    // Animate all pips to their solved positions
-    for (const pip of this.pips) {
-      pip.animate_to({ x: 0, y: 0 });
+    const is_line_loop = this.line.length > 1 &&
+      this.line[0] === this.line[this.line.length - 1];
+    if (is_line_loop) {
+      // Check the solvedness of the puzzle
+      // Animate all pips to their solved positions
+      for (const pip of this.pips) {
+        pip.animate_to({ x: 0, y: 0 });
+      }
     }
   }
 
@@ -221,7 +229,12 @@ class Grid {
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       const { x, y } = this.puzzle.verts[v_idx];
       ctx.fillStyle = (interaction && v_idx === interaction.vert_idx) ? LINE_COLOR : GRID_COLOR;
-      ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
+      ctx.fillRect(
+        x - VERTEX_SIZE / 2,
+        y - VERTEX_SIZE / 2,
+        VERTEX_SIZE,
+        VERTEX_SIZE,
+      );
     }
     // Line
     ctx.lineWidth = EDGE_WIDTH;
@@ -259,12 +272,13 @@ class Pip {
   animate_to(target_state) {
     this.anim_source = this.current_state();
     this.anim_target = target_state;
-    this.anim_start_time = Date.now()
-       + Math.random() * 1000 * PIP_ANIMATION_SPREAD * PIP_ANIMATION_TIME;
+    this.anim_start_time = Date.now() +
+      Math.random() * 1000 * PIP_ANIMATION_SPREAD * PIP_ANIMATION_TIME;
   }
 
   current_state() {
-    let anim_factor = (Date.now() - this.anim_start_time) / 1000 / PIP_ANIMATION_TIME;
+    let anim_factor = (Date.now() - this.anim_start_time) / 1000 /
+      PIP_ANIMATION_TIME;
     anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
     anim_factor = ease_in_out(anim_factor); // Easing
     return {
@@ -281,7 +295,7 @@ class Puzzle {
     let pip_lines = string.split("|");
     this.width = pip_lines[0].length;
     this.height = pip_lines.length;
-    
+
     // Create vertices
     this.verts = [];
     for (let y = 0; y < this.height + 1; y++) {
@@ -304,15 +318,15 @@ class Puzzle {
         this.edges.push({ v1: vert_idx(x + 1, y), v2: vert_idx(x, y) });
       }
     }
-    
+
     // Cells
     this.cells = [];
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        let tl = vert_idx(x    , y    );
-        let tr = vert_idx(x + 1, y    );
+        let tl = vert_idx(x, y);
+        let tr = vert_idx(x + 1, y);
         let br = vert_idx(x + 1, y + 1);
-        let bl = vert_idx(x    , y + 1);
+        let bl = vert_idx(x, y + 1);
         this.cells.push({
           verts: [tl, tr, br, bl],
           centre: { x: x + 0.5, y: y + 0.5 },
@@ -344,18 +358,18 @@ class Puzzle {
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
 function dice_pattern(num_pips) {
   const pip_pair_patterns = [
-    [1, -1],    // 2
-    [1, 1],     // 4
-    [1, 0],     // 6
-    [0, 1],     // 8
-    [1/3, 1/3], // 10
+    [1, -1], // 2
+    [1, 1], // 4
+    [1, 0], // 6
+    [0, 1], // 8
+    [1 / 3, 1 / 3], // 10
   ];
 
   const pip_positions = [];
   // Add pairs of opposite pips for each even-numbered dice patterns
   for (let i = 0; i < (num_pips - 1) / 2; i++) {
     let [x, y] = pip_pair_patterns[i];
-    pip_positions.push({ x:  x, y:  y });
+    pip_positions.push({ x: x, y: y });
     pip_positions.push({ x: -x, y: -y });
   }
   // Add a pip in the centre for odd-numbered dice patterns
@@ -367,7 +381,7 @@ function dice_pattern(num_pips) {
 /* ===== BOILERPLATE CODE FOR BROWSER INTERFACING ===== */
 
 const canvas = document.getElementById("game-canvas");
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext("2d");
 
 // Create puzzle patterns
 const puzzles = [
@@ -377,17 +391,18 @@ const puzzles = [
   "123",
   "21|1 ",
   "11|11",
+  "11|1 ",
   " 1 |1 1| 1 ",
   "11|11|11",
   "111|111|111",
-  
+
   // Cool set of puzzles
   "21|12",
   "21 |12 |   ",
   "21 |12 |  2",
   "21  |12  |  2 |    ",
   "21  |12  |    |   2",
-  
+
   // Cool set of puzzles
   // TODO: Do this whole set as 1+2=3 rather than 1+1=2
   // TODO: Prune this down a bit
@@ -401,13 +416,13 @@ const puzzles = [
   "22 |1  |  1",
   "222|1  |  1",
   "222|1 1|   ",
-  
+
   // Cool set of puzzles
   " 31|31 |1  ",
   "331|31 |1  ",
   " 31|31 |1 3",
   " 31|33 |1 1",
-  
+
   // Cool set of puzzles
   "123|2 1",
   " 2 |1 3|2 1",
@@ -416,7 +431,7 @@ const puzzles = [
   // Cool set of puzzles
   "1 1|2 2|1 1",
   "   |1 1|2 2|1 1",
- 
+
   // Cool set of puzzles
   "21|21",
   " 21| 21",
@@ -428,28 +443,28 @@ const puzzles = [
   "1 1| 2 |1 1",
   "1 1|  2|1 1",
   "1 1|1 2|  1",
-  
+
   // Cool set of puzzles
   "  2|2  |11 ",
   "  2|   |112",
   "  2|   |112",
   "2 2|   |112",
   "2 2|   |121",
-  
+
   // Cool set of puzzles
   "313|   |131",
   "113|   |331",
   "131|   |331",
   "111|   |333",
-  
+
   // Twizzly puzzles
   "1  3|  5 |    |  4 |2   ", // TODO: Rotate?
   "1   3| 2   |   4 |5   6",
   "1   3| 4   |   2 |5   6",
-  
+
   // Puzzles looking for sets
   "1 2| 2 |  1",
- 
+
   // Misc puzzles
   "1 2 |3 4 |    ",
   "1 2|34 |   ",
@@ -465,8 +480,6 @@ const puzzles = [
 ].map((p) => new Puzzle(p));
 console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
-
-
 
 window.addEventListener("resize", on_resize);
 function on_resize() {
@@ -502,7 +515,7 @@ function update_mouse(evt) {
   mouse_x = evt.clientX * window.devicePixelRatio;
   mouse_y = evt.clientY * window.devicePixelRatio;
   mouse_button = evt.buttons != 0;
-};
+}
 
 /* START GAMELOOP */
 
