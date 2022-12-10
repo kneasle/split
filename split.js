@@ -51,22 +51,10 @@ class Game {
 
     const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
     if (are_all_solved) {
-      const grid_solution_numbers = this
-        .grids
-        .filter((grid) => grid.solution !== undefined)
-        .map((grid) => grid.solution.pip_group_size);
-      grid_solution_numbers.sort();
-      let are_all_different = true;
-      for (let g = 0; g < grid_solution_numbers.length - 1; g++) {
-        if (grid_solution_numbers[g] === grid_solution_numbers[g + 1]) {
-          are_all_different = false;
-        }
-      }
-
       ctx.font = "20px monospace";
       ctx.textAlign = "center";
       ctx.fillText(
-        are_all_different
+        this.has_valid_solutions()
           ? "Well done, you solved the puzzle.  Hit space to move on..."
           : "Please group the dots into different amounts in each puzzle",
         canvas.width / 2,
@@ -164,6 +152,22 @@ class Game {
 
   /* INTERACTION */
 
+  on_key_down(evt) {
+    if (evt.key === "h") {
+      this.puzzle_idx--;
+    } else if (evt.key === "l") {
+      this.puzzle_idx++;
+    } else if (evt.key === " " && this.has_valid_solutions()) {
+      this.puzzle_idx++;
+    } else {
+      return; // Don't update the puzzle if the keypress wasn't interesting
+    }
+
+    // Update the grids
+    this.puzzle_idx = Math.max(0, Math.min(this.puzzles.length - 1, this.puzzle_idx));
+    this.reload_grids();
+  }
+
   on_mouse_move() {
     if (this.selected_grid_idx !== undefined) {
       // The user is drawing a line in `this.selected_grid_idx`
@@ -244,6 +248,24 @@ class Game {
 
   current_puzzle() {
     return this.puzzles[this.puzzle_idx];
+  }
+
+  has_valid_solutions() {
+    const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
+
+    const grid_solution_numbers = this
+      .grids
+      .filter((grid) => grid.solution !== undefined)
+      .map((grid) => grid.solution.pip_group_size);
+    grid_solution_numbers.sort();
+    let are_all_different = true;
+    for (let g = 0; g < grid_solution_numbers.length - 1; g++) {
+      if (grid_solution_numbers[g] === grid_solution_numbers[g + 1]) {
+        are_all_different = false;
+      }
+    }
+
+    return are_all_solved && are_all_different;
   }
 }
 
@@ -653,23 +675,7 @@ window.addEventListener("mouseup", (evt) => {
   update_mouse(evt);
   game.on_mouse_up();
 });
-window.addEventListener("keydown", (evt) => {
-  let changed_puzzle = false;
-  if (evt.key === "h") {
-    game.puzzle_idx--;
-    changed_puzzle = true;
-  }
-  if (evt.key === "l") {
-    game.puzzle_idx++;
-    changed_puzzle = true;
-  }
-
-  if (changed_puzzle) {
-    // Don't out-of-bounds the puzzle array
-    game.puzzle_idx = Math.max(0, Math.min(game.puzzles.length - 1, game.puzzle_idx));
-    game.reload_grids();
-  }
-});
+window.addEventListener("keydown", (evt) => game.on_key_down(evt));
 
 function update_mouse(evt) {
   mouse_x = evt.clientX * window.devicePixelRatio;
