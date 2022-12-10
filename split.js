@@ -25,17 +25,13 @@ class Game {
     // Puzzles
     this.puzzles = puzzles;
     this.grids = [
-      new Grid(puzzles[56], 120, -300, 0),
-      new Grid(puzzles[56], 120, 300, 0),
+      new Grid(puzzles[56]),
+      new Grid(puzzles[56]),
+      new Grid(puzzles[56]),
+      new Grid(puzzles[56]),
     ];
 
     this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
-  }
-
-  /* INTERACTION */
-
-  frame() {
-    this.render();
   }
 
   render() {
@@ -45,13 +41,91 @@ class Game {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
     for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
       this.grids[g_idx].draw(
         (interaction && interaction.grid_idx === g_idx) ? interaction : undefined,
       );
     }
     ctx.restore();
+  }
+
+  // Arrange the grids as best we can into the window, choosing the splitting pattern which
+  // maximises the size of the grids
+  arrange_grids() {
+    const num_grids = this.grids.length;
+    if (num_grids === 0) return; // No point arranging no grids
+
+    // Decide the possible ways to arrange the grids
+    let arrangements = this.grid_arrangements(num_grids);
+
+    // Get the size of the puzzles, including 0.5 cells of padding on every side
+    const puzzle = this.grids[0].puzzle;
+    const puzzle_width = puzzle.width + 1;
+    const puzzle_height = puzzle.height + 1;
+
+    // Decide which arrangement maximises the grid size
+    let best_arrangement = undefined;
+    let best_arrangement_scale = 0;
+    for (const arrangement of arrangements) {
+      // Calculate the scale of the smallest grid
+      let scale = Infinity;
+      for (const { w, h } of arrangement) {
+        scale = Math.min(scale, w / puzzle_width, h / puzzle_height);
+      }
+      if (scale > best_arrangement_scale) {
+        best_arrangement = arrangement;
+        best_arrangement_scale = scale;
+      }
+    }
+
+    // Lay each grid in the centre of its corresponding rectangle
+    for (let i = 0; i < num_grids; i++) {
+      let grid_rect = best_arrangement[i];
+      this.grids[i].position.x = grid_rect.x + grid_rect.w / 2;
+      this.grids[i].position.y = grid_rect.y + grid_rect.h / 2;
+      this.grids[i].scale = best_arrangement_scale;
+    }
+  }
+
+  grid_arrangements(num_grids) {
+    let vertical = [];
+    let horizontal = [];
+    for (let i = 0; i < num_grids; i++) {
+      horizontal.push({ x: i / num_grids, y: 0, w: 1 / num_grids, h: 1 });
+      vertical.push({ x: 0, y: i / num_grids, w: 1, h: 1 / num_grids });
+    }
+    // Arrangements has type `[[NormalizedRect; num_grids]]`
+    let arrangements = [vertical, horizontal];
+    // Add a compound two-tier arrangement for three or four grids:
+    //             A B           A B
+    //              C     or     C D
+    if (num_grids === 3 || num_grids === 4) {
+      // Top row ...
+      let compound_arrangement = [
+        { x: 0, y: 0, w: 0.5, h: 0.5 },
+        { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+      ];
+      // Second row
+      if (num_grids === 3) {
+        compound_arrangement.push({ x: 0, y: 0.5, w: 1, h: 0.5 });
+      } else {
+        compound_arrangement.push({ x: 0, y: 0.5, w: 0.5, h: 0.5 });
+        compound_arrangement.push({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
+      }
+      arrangements.push(compound_arrangement);
+    }
+
+    // Convert 'relative' coordinates (i.e. from `0..1`) to 'absolute' coordinates
+    // (i.e. from '0..canvas.size')
+    let absolute_arrangements = arrangements.map((rects) =>
+      rects.map(({ x, y, w, h }) => ({
+        x: x * canvas.width,
+        y: y * canvas.height,
+        w: w * canvas.width,
+        h: h * canvas.height,
+      }))
+    );
+    return absolute_arrangements;
   }
 
   /* INTERACTION */
@@ -93,10 +167,8 @@ class Game {
 
       let grid = this.grids[grid_idx];
       // Transform mouse coordinates into the puzzle's coord space
-      let local_x = (mouse_x - canvas.width / 2 - grid.position.x) / grid.scale +
-        grid.puzzle.width / 2;
-      let local_y = (mouse_y - canvas.height / 2 - grid.position.y) / grid.scale +
-        grid.puzzle.height / 2;
+      let local_x = (mouse_x - grid.position.x) / grid.scale + grid.puzzle.width / 2;
+      let local_y = (mouse_y - grid.position.y) / grid.scale + grid.puzzle.height / 2;
 
       for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
         let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
@@ -139,11 +211,11 @@ class Game {
 
 /// An instance of a `Puzzle` on the screen
 class Grid {
-  constructor(puzzle, scale, x, y) {
+  constructor(puzzle) {
     this.puzzle = puzzle;
-    // Transform
-    this.scale = scale;
-    this.position = { x, y };
+    // Transform (this is set before the first frame by `Game.arrange_grids`)
+    this.scale = 100;
+    this.position = { x: 0, y: 0 };
     // List of vertex indices which make up the line being drawn
     this.line = [];
     // For every `Grid`, `solution` is always in one of three states:
@@ -247,6 +319,7 @@ class Grid {
         const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
         pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
         // Animate them to their new positions
+        // TODO: Don't move pips that are are in the same place in both solved and unsolved puzzles
         for (let p = 0; p < num_pips; p++) {
           const { x, y } = this.puzzle.pip_coords(cell_idx, p, num_pips);
           this.pips[pip_idxs[p]].animate_to({ x, y, color: this.solution_color() });
@@ -306,6 +379,12 @@ class Grid {
     ctx.beginPath();
     for (const vert_idx of this.line) {
       let vert = this.puzzle.verts[vert_idx];
+      ctx.lineTo(vert.x, vert.y);
+    }
+    // HACK: For loops, draw the first line segment twice to avoid a discontinuity at the first
+    // vertex
+    if (this.line.length > 1 && this.line[0] === this.line[this.line.length - 1]) {
+      let vert = this.puzzle.verts[this.line[1]];
       ctx.lineTo(vert.x, vert.y);
     }
     ctx.stroke();
@@ -634,6 +713,7 @@ function on_resize() {
   var rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
+  game.arrange_grids();
 }
 
 /* MOUSE HANDLING */
@@ -663,15 +743,6 @@ function update_mouse(evt) {
   mouse_y = evt.clientY * window.devicePixelRatio;
   mouse_button = evt.buttons != 0;
 }
-
-/* START GAMELOOP */
-
-on_resize();
-function frame() {
-  game.frame();
-  window.requestAnimationFrame(frame);
-}
-frame();
 
 /* UTILS */
 
@@ -726,3 +797,12 @@ function parse_color(color) {
 function to_canvas_color(color) {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
 }
+
+/* START GAMELOOP */
+
+on_resize();
+function frame() {
+  game.render();
+  window.requestAnimationFrame(frame);
+}
+frame();
