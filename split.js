@@ -24,7 +24,9 @@ class Game {
   constructor(puzzles) {
     // Puzzles
     this.puzzles = puzzles;
-    this.grids = [new Grid(puzzles[56]), new Grid(puzzles[56])];
+    this.puzzle_idx = 0;
+    this.grids = [];
+    this.reload_grids();
 
     this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
   }
@@ -42,6 +44,14 @@ class Game {
       );
     }
     ctx.restore();
+  }
+
+  reload_grids() {
+    this.grids = [];
+    for (let i = 0; i < this.current_puzzle().num_solutions; i++) {
+      this.grids.push(new Grid(this.current_puzzle()));
+    }
+    this.arrange_grids();
   }
 
   // Arrange the grids as best we can into the window, choosing the splitting pattern which
@@ -202,6 +212,10 @@ class Game {
   selected_grid() {
     return this.grids[this.selected_grid_idx];
   }
+
+  current_puzzle() {
+    return this.puzzles[this.puzzle_idx];
+  }
 }
 
 /// An instance of a `Puzzle` on the screen
@@ -361,6 +375,7 @@ class Grid {
 
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
+      // Decide if the vertex should be line coloured
       let should_be_line_colored;
       if (this.line.length <= 1) {
         should_be_line_colored = interaction && v_idx === interaction.vert_idx;
@@ -381,6 +396,7 @@ class Grid {
     }
 
     // Line
+    // TODO: Smooth line drawing
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = line_color;
     ctx.beginPath();
@@ -443,7 +459,9 @@ class Pip {
 
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
-  constructor(string) {
+  constructor(string, num_solutions) {
+    this.num_solutions = num_solutions;
+
     // Parse string into a list of pips in each cell
     let pip_lines = string.split("|");
     this.width = pip_lines[0].length;
@@ -651,98 +669,100 @@ const ctx = canvas.getContext("2d");
 // Create puzzle patterns
 const puzzles = [
   // Intro
-  "11",
-  "112",
-  "123",
-  "21|1 ",
-  "11|11",
-  "11|1 ",
-  " 1 |1 1| 1 ",
-  "11|11|11",
-  "111|111|111",
+  { num_solutions: 1, pattern: "11" },
+  { num_solutions: 1, pattern: "112" },
+  { num_solutions: 1, pattern: "123" },
+  { num_solutions: 1, pattern: "21|1 " },
+  { num_solutions: 2, pattern: "11|11" },
+  { num_solutions: 1, pattern: "11|1 " },
+  { num_solutions: 2, pattern: " 1 |1 1| 1 " },
+  { num_solutions: 3, pattern: "11|11|11" },
+  { num_solutions: 2, pattern: "111|111|111" },
 
   // Cool set of puzzles
-  "21|12",
-  "21 |12 |   ",
-  "21 |12 |  2",
-  "21  |12  |  2 |    ",
-  "21  |12  |    |   2",
+  { num_solutions: 1, pattern: "21|12" },
+  { num_solutions: 2, pattern: "21 |12 |   " },
+  { num_solutions: 1, pattern: "21 |12 |  2" },
+  { num_solutions: 2, pattern: "21  |12  |  2 |    " },
+  { num_solutions: 2, pattern: "21  |12  |    |   2" },
 
   // Cool set of puzzles
   // TODO: Do this whole set as 1+2=3 rather than 1+1=2
   // TODO: Prune this down a bit
-  "2 1|1 2",
-  "2 2|1 1",
-  "   |2 2|1 1",
-  "2 2|   |1 1",
-  "  2| 2 |1 1",
-  "  2|12 |  1",
-  "2 2|1  |  1",
-  "22 |1  |  1",
-  "222|1  |  1",
-  "222|1 1|   ",
+  { num_solutions: 1, pattern: "21|12" }, // TODO: This is a duplicate
+  { num_solutions: 2, pattern: "2 1|1 2" },
+  { num_solutions: 2, pattern: "2 2|1 1" },
+  { num_solutions: 2, pattern: "   |2 2|1 1" },
+  { num_solutions: 2, pattern: "2 2|   |1 1" },
+  { num_solutions: 2, pattern: "  2| 2 |1 1" },
+  { num_solutions: 2, pattern: "  2|12 |  1" },
+  { num_solutions: 2, pattern: "2 2|1  |  1" },
+  { num_solutions: 2, pattern: "22 |1  |  1" },
+  { num_solutions: 2, pattern: "222|1  |  1" },
+  { num_solutions: 2, pattern: "222|1 1|   " },
 
   // Cool set of puzzles
-  " 31|31 |1  ",
-  "331|31 |1  ",
-  " 31|31 |1 3",
-  " 31|33 |1 1",
+  { num_solutions: 1, pattern: " 31|31 |1  " },
+  { num_solutions: 2, pattern: "331|31 |1  " },
+  { num_solutions: 3, pattern: " 31|31 |1 3" },
+  { num_solutions: 2, pattern: " 31|33 |1 1" },
 
   // Cool set of puzzles
-  "123|2 1",
-  " 2 |1 3|2 1",
-  " 1 |2 3|2 1",
+  { num_solutions: 1, pattern: "123|2 1" },
+  { num_solutions: 1, pattern: " 2 |1 3|2 1" },
+  { num_solutions: 1, pattern: " 1 |2 3|2 1" },
 
   // Cool set of puzzles
-  "1 1|2 2|1 1",
-  "   |1 1|2 2|1 1",
+  { num_solutions: 1, pattern: "1 1|2 2|1 1" },
+  { num_solutions: 2, pattern: "   |1 1|2 2|1 1" },
 
   // Cool set of puzzles
-  "21|21",
-  " 21| 21",
-  "221|  1",
+  { num_solutions: 1, pattern: "21|21" },
+  { num_solutions: 1, pattern: " 21| 21" },
+  { num_solutions: 2, pattern: "221|  1" },
 
   // Cool set of puzzles
-  " 2 | 2 | 2 ",
-  " 2 | 2 |1 1",
-  "1 1| 2 |1 1",
-  "1 1|  2|1 1",
-  "1 1|1 2|  1",
+  { num_solutions: 1, pattern: " 2 | 2 | 2 " },
+  { num_solutions: 2, pattern: " 2 | 2 |1 1" },
+  { num_solutions: 2, pattern: "1 1| 2 |1 1" },
+  { num_solutions: 2, pattern: "1 1|  2|1 1" },
+  { num_solutions: 2, pattern: "1 1|1 2|  1" },
 
   // Cool set of puzzles
-  "  2|2  |11 ",
-  "  2|   |112",
-  "  2|   |112",
-  "2 2|   |112",
-  "2 2|   |121",
+  { num_solutions: 2, pattern: "  2|2  |11 " },
+  { num_solutions: 2, pattern: "  2|   |112" },
+  { num_solutions: 2, pattern: "  2|   |112" },
+  { num_solutions: 2, pattern: "2 2|   |112" },
+  { num_solutions: 2, pattern: "2 2|   |121" },
 
   // Cool set of puzzles
-  "313|   |131",
-  "113|   |331",
-  "131|   |331",
-  "111|   |333",
+  { num_solutions: 2, pattern: "313|   |131" },
+  { num_solutions: 3, pattern: "113|   |331" },
+  { num_solutions: 3, pattern: "111|   |333" },
+  { num_solutions: 2, pattern: "131|   |331" },
 
   // Twizzly puzzles
-  "1  3|  5 |    |  4 |2   ", // TODO: Rotate?
-  "1   3| 2   |   4 |5   6",
-  "1   3| 4   |   2 |5   6",
+  { num_solutions: 1, pattern: "1  3|  5 |    |  4 |2   " }, // TODO: Rotate?
+  { num_solutions: 1, pattern: "1   3| 2   |   4 |5   6" },
+  { num_solutions: 1, pattern: "1   3| 4   |   2 |5   6" },
 
   // Puzzles looking for sets
-  "1 2| 2 |  1",
+  { num_solutions: 2, pattern: "1 2| 2 |  1" },
 
   // Misc puzzles
-  "1 2 |3 4 |    ",
-  "1 2|34 |   ",
-  "121|2 2|121",
-  " 33|   |114",
-  " 1 |1 1|111",
-  "    |12 21",
-  "111|181|111",
-  "1 41|4   |   4|14 1",
-  "2  2| 11 | 11 |2  2",
-  "4224|2112|2112|4224",
-  "2 1 2|     |1 2 1|    |2 1 2",
-].map((p) => new Puzzle(p));
+  { num_solutions: 1, pattern: "1 2 |3 4 |    " },
+  { num_solutions: 1, pattern: "1 2|34 |   " },
+  { num_solutions: 2, pattern: "121|2 2|121" },
+  { num_solutions: 2, pattern: " 33|   |114" },
+  { num_solutions: 3, pattern: " 1 |1 1|111" },
+  { num_solutions: 2, pattern: "     |12 21" },
+  { num_solutions: 1, pattern: "111|181|111" },
+  { num_solutions: 3, pattern: "1 41|4   |   4|14 1" },
+  { num_solutions: 4, pattern: "2  2| 11 | 11 |2  2" },
+  { num_solutions: 3, pattern: "4224|2112|2112|4224" },
+  { num_solutions: 1, pattern: "2 1 2|     |1 2 1|    |2 1 2" },
+  { num_solutions: 2, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
+].map(({ pattern, num_solutions }) => new Puzzle(pattern, num_solutions));
 console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
 
@@ -775,6 +795,21 @@ window.addEventListener("mousedown", (evt) => {
 window.addEventListener("mouseup", (evt) => {
   update_mouse(evt);
   game.on_mouse_up();
+});
+window.addEventListener("keydown", (evt) => {
+  let changed_puzzle = false;
+  if (evt.key === "h") {
+    game.puzzle_idx--;
+    changed_puzzle = true;
+  }
+  if (evt.key === "l") {
+    game.puzzle_idx++;
+    changed_puzzle = true;
+  }
+
+  if (changed_puzzle) {
+    game.reload_grids();
+  }
 });
 
 function update_mouse(evt) {
