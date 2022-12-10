@@ -37,13 +37,42 @@ class Game {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.save();
     for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
       this.grids[g_idx].draw(
         (interaction && interaction.grid_idx === g_idx) ? interaction : undefined,
       );
     }
-    ctx.restore();
+
+    ctx.fillStyle = "white";
+    ctx.font = "50px monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`#${this.puzzle_idx + 1}`, 10, 10);
+
+    const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
+    if (are_all_solved) {
+      const grid_solution_numbers = this
+        .grids
+        .filter((grid) => grid.solution !== undefined)
+        .map((grid) => grid.solution.pip_group_size);
+      grid_solution_numbers.sort();
+      let are_all_different = true;
+      for (let g = 0; g < grid_solution_numbers.length - 1; g++) {
+        if (grid_solution_numbers[g] === grid_solution_numbers[g + 1]) {
+          are_all_different = false;
+        }
+      }
+
+      ctx.font = "20px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        are_all_different
+          ? "Well done, you solved the puzzle.  Hit space to move on..."
+          : "Please group the dots into different amounts in each puzzle",
+        canvas.width / 2,
+        10,
+      );
+    }
   }
 
   reload_grids() {
@@ -636,6 +665,8 @@ window.addEventListener("keydown", (evt) => {
   }
 
   if (changed_puzzle) {
+    // Don't out-of-bounds the puzzle array
+    game.puzzle_idx = Math.max(0, Math.min(game.puzzles.length - 1, game.puzzle_idx));
     game.reload_grids();
   }
 });

@@ -74,7 +74,7 @@ class Puzzle {
   }
 
   get_solution(line) {
-    console.assert(line[0] === line[line.length - 1]);
+    console.assert(line[0] === line[line.length - 1]); // Check that line forms a loop
     // Determine which edges are in the line
     let is_edge_in_line = [];
     for (const _ of this.edges) is_edge_in_line.push(false);
