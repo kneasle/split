@@ -24,12 +24,7 @@ class Game {
   constructor(puzzles) {
     // Puzzles
     this.puzzles = puzzles;
-    this.grids = [
-      new Grid(puzzles[56]),
-      new Grid(puzzles[56]),
-      new Grid(puzzles[56]),
-      new Grid(puzzles[56]),
-    ];
+    this.grids = [new Grid(puzzles[56]), new Grid(puzzles[56])];
 
     this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
   }
@@ -364,8 +359,22 @@ class Grid {
     }
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
+      let should_be_line_colored;
+      if (this.line.length <= 1) {
+        should_be_line_colored = interaction && v_idx === interaction.vert_idx;
+      } else {
+        let start_vert = this.line[0];
+        let end_vert = this.line[this.line.length - 1];
+        if (start_vert === end_vert) {
+          should_be_line_colored = false;
+        } else {
+          // Make the start and end of the line
+          should_be_line_colored = v_idx === start_vert || v_idx === end_vert;
+        }
+      }
+
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = (interaction && v_idx === interaction.vert_idx) ? line_color : GRID_COLOR;
+      ctx.fillStyle = should_be_line_colored ? line_color : GRID_COLOR;
       ctx.fillRect(
         x - VERTEX_SIZE / 2,
         y - VERTEX_SIZE / 2,
