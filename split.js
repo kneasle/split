@@ -346,6 +346,7 @@ class Grid {
       }
       ctx.fill();
     }
+
     // Edges
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = GRID_COLOR;
@@ -357,6 +358,7 @@ class Grid {
       ctx.lineTo(v2.x, v2.y);
       ctx.stroke();
     }
+
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       let should_be_line_colored;
@@ -375,13 +377,9 @@ class Grid {
 
       const { x, y } = this.puzzle.verts[v_idx];
       ctx.fillStyle = should_be_line_colored ? line_color : GRID_COLOR;
-      ctx.fillRect(
-        x - VERTEX_SIZE / 2,
-        y - VERTEX_SIZE / 2,
-        VERTEX_SIZE,
-        VERTEX_SIZE,
-      );
+      ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
+
     // Line
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = line_color;
@@ -578,6 +576,38 @@ class Puzzle {
       x: cell.centre.x + x * PIP_PATTERN_RADIUS,
       y: cell.centre.y + y * PIP_PATTERN_RADIUS,
     };
+  }
+
+  nearest_edge(p_x, p_y) {
+    let nearest = undefined;
+    for (let e = 0; e < this.edges.length; e++) {
+      let { v1, v2 } = this.edges[e];
+      let s_x = this.verts[v1].x;
+      let s_y = this.verts[v1].y;
+      let d_x = this.verts[v2].x - s_x;
+      let d_y = this.verts[v2].y - s_y;
+      let d_dot_p_minus_s = d_x * (p_x - s_x) + d_y * (p_y - s_y);
+      let d_dot_d = d_x * d_x + d_y * d_y;
+      let lambda = d_dot_p_minus_s / d_dot_d;
+      lambda = Math.max(0, Math.min(1, lambda)); // Clamp to the line
+      // Compute point
+      let nearest_x = s_x + lambda * d_x;
+      let nearest_y = s_y + lambda * d_y;
+      // Compute distance
+      let dist_x = p_x - nearest_x;
+      let dist_y = p_y - nearest_y;
+      let dist = Math.sqrt(dist_x * dist_x + dist_y * dist_y);
+      if (nearest === undefined || dist < nearest.distance) {
+        nearest = {
+          edge_idx: e,
+          lambda,
+          x: nearest_x,
+          y: nearest_y,
+          distance: dist,
+        };
+      }
+    }
+    return nearest;
   }
 
   connecting_edge(vert_1, vert_2) {
