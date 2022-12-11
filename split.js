@@ -17,7 +17,7 @@ const PIP_SIZE = 0.12;
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
-const VERTEX_INTERACTION_RADIUS = 0.71;
+const VERTEX_INTERACTION_RADIUS = 0.4;
 // Display
 const HEADER_HEIGHT = 100; // Pixels
 const SOLVED_GRIDS_SIZE = 0.8; // Factor of `HEADER_HEIGHT`
@@ -26,9 +26,9 @@ const SOLVED_GRIDS_SIZE = 0.8; // Factor of `HEADER_HEIGHT`
 class Game {
   constructor(puzzles) {
     // Puzzles
-    this.puzzles = puzzles;
+    this.puzzles = puzzles.map((puzzle) => ({ puzzle, solved_grids: [] }));
     this.puzzle_idx = 0;
-    this.grid = undefined;
+    this.main_grid = undefined;
     this.update_to_new_puzzle();
   }
 
@@ -36,12 +36,7 @@ class Game {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let transform = this.grid_transform();
-    ctx.save();
-    ctx.translate(transform.x, transform.y);
-    ctx.scale(transform.scale, transform.scale);
-    this.grid.draw(this.interaction());
-    ctx.restore();
+    this.main_grid.draw();
 
     ctx.fillStyle = "white";
     ctx.font = "50px monospace";
@@ -60,26 +55,6 @@ class Game {
         SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
       );
     }
-  }
-
-  // Arrange the grids as best we can into the window, choosing the splitting pattern which
-  // maximises the size of the grids
-  grid_transform() {
-    // Get the size of the puzzles, including 0.5 cells of padding on every side
-    const puzzle = this.grid.puzzle;
-    const puzzle_width = puzzle.width + 0.5 * 2;
-    const puzzle_height = puzzle.height + 0.5 * 2;
-
-    let scale = Math.min(
-      canvas.width / puzzle_width,
-      (canvas.height - HEADER_HEIGHT) / puzzle_height,
-    );
-
-    return {
-      x: canvas.width / 2,
-      y: HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2,
-      scale: scale,
-    };
   }
 
   /* INTERACTION */
@@ -101,68 +76,25 @@ class Game {
   }
 
   on_mouse_move() {
-    if (this.grid.is_drawing_line) {
-      this.grid.update_line(this.interaction());
-    }
+    this.main_grid.on_mouse_move();
   }
 
   on_mouse_down() {
-    let interaction = this.interaction();
-    if (interaction) {
-      this.grid.begin_drawing_line(interaction);
-    }
+    this.main_grid.on_mouse_down();
   }
 
   on_mouse_up() {
-    if (this.grid.is_drawing_line) {
-      this.grid.finish_drawing_line(this.interaction);
-    }
-  }
-
-  // Find out what the mouse must be interacting with (in this case, the user is defined to be
-  // interacting with the nearest vertex to the mouse).
-  interaction() {
-    let interaction = undefined;
-
-    // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.grid_transform();
-    let local_x = (mouse_x - transform.x) / transform.scale + this.grid.puzzle.width / 2;
-    let local_y = (mouse_y - transform.y) / transform.scale + this.grid.puzzle.height / 2;
-
-    for (let vert_idx = 0; vert_idx < this.grid.puzzle.verts.length; vert_idx++) {
-      let { x: vert_x, y: vert_y } = this.grid.puzzle.verts[vert_idx];
-      let dX = local_x - vert_x;
-      let dY = local_y - vert_y;
-      let dist = Math.sqrt(dX * dX + dY * dY);
-      if (interaction === undefined || dist < interaction.vert_distance) {
-        interaction = {
-          local_x,
-          local_y,
-          vert_idx,
-          vert_distance: dist,
-        };
-      }
-    }
-
-    // Check if mouse is too far away, but only when not drawing lines
-    if (
-      !this.grid.is_drawing_line && interaction &&
-      interaction.vert_distance > VERTEX_INTERACTION_RADIUS
-    ) {
-      interaction = undefined;
-    }
-
-    return interaction;
+    this.main_grid.on_mouse_up();
   }
 
   /* UTILS */
 
   update_to_new_puzzle() {
-    this.grid = new Grid(this.current_puzzle());
+    this.main_grid = new Grid(this.current_puzzle());
   }
 
   current_puzzle() {
-    return this.puzzles[this.puzzle_idx];
+    return this.puzzles[this.puzzle_idx].puzzle;
   }
 
   has_valid_solutions() {
@@ -213,22 +145,36 @@ class Grid {
     }
   }
 
-  begin_drawing_line(interaction) {
-    if (interaction.vert_idx !== undefined) {
+  on_mouse_down() {
+    const interaction = this.interaction();
+    if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
+      // Mouse is cloes enough to a vertex to start a line
       this.line = [interaction.vert_idx];
       this.is_drawing_line = true;
-      // Remove current solution
-      if (this.solution !== undefined) {
-        // Animate all pips back to their start locations
-        for (const pip of this.pips) {
-          pip.animate_to(pip.unsolved_state);
-        }
-      }
-      this.solution = undefined;
+    } else if (
+      interaction.local_x >= 0 && interaction.local_x <= this.puzzle.width &&
+      interaction.local_y >= 0 && interaction.local_y <= this.puzzle.height
+    ) {
+      this.line = []; // Mouse is on the grid but can't start a line
+    } else {
+      return; // Mouse is fully off the grid, so don't register the click
     }
+
+    // Remove current solution
+    if (this.solution !== undefined) {
+      // Animate all pips back to their start locations
+      for (const pip of this.pips) {
+        pip.animate_to(pip.unsolved_state);
+      }
+    }
+    this.solution = undefined;
   }
 
-  update_line(interaction) {
+  on_mouse_move() {
+    if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
+
+    const interaction = this.interaction();
+
     let new_vert = interaction.vert_idx;
     let last_vert = this.line[this.line.length - 1];
     let penultimate_vert = this.line[this.line.length - 2];
@@ -254,7 +200,9 @@ class Grid {
     }
   }
 
-  finish_drawing_line(_interaction) {
+  on_mouse_up() {
+    if (!this.is_drawing_line) return; // Mouse ups don't matter if we aren't drawing a line
+
     this.is_drawing_line = false;
 
     // Check the user's solution
@@ -305,8 +253,14 @@ class Grid {
     }
   }
 
-  draw(interaction) {
+  draw() {
+    const interaction = this.interaction();
+
+    // Update canvas's transformation matrix to the puzzle's local space
+    let transform = this.main_grid_transform();
     ctx.save();
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.scale, transform.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
 
     // Handle solution animation (mainly colours)
@@ -344,7 +298,8 @@ class Grid {
       // Decide if the vertex should be line coloured
       let should_be_line_colored;
       if (this.line.length <= 1) {
-        should_be_line_colored = interaction && v_idx === interaction.vert_idx;
+        should_be_line_colored = v_idx === interaction.vert_idx &&
+          interaction.vert_distance <= VERTEX_INTERACTION_RADIUS;
       } else {
         let start_vert = this.line[0];
         let end_vert = this.line[this.line.length - 1];
@@ -386,6 +341,51 @@ class Grid {
     }
 
     ctx.restore();
+  }
+
+  // Find out what the mouse must be interacting with (in this case, the user is defined to be
+  // interacting with the nearest vertex to the mouse).
+  interaction() {
+    // Transform mouse coordinates into the puzzle's coord space
+    let transform = this.main_grid_transform();
+    let local_x = (mouse_x - transform.x) / transform.scale + this.puzzle.width / 2;
+    let local_y = (mouse_y - transform.y) / transform.scale + this.puzzle.height / 2;
+
+    let interaction = undefined;
+    for (let vert_idx = 0; vert_idx < this.puzzle.verts.length; vert_idx++) {
+      let { x: vert_x, y: vert_y } = this.puzzle.verts[vert_idx];
+      let dX = local_x - vert_x;
+      let dY = local_y - vert_y;
+      let dist = Math.sqrt(dX * dX + dY * dY);
+      if (interaction === undefined || dist < interaction.vert_distance) {
+        interaction = {
+          local_x,
+          local_y,
+          vert_idx,
+          vert_distance: dist,
+        };
+      }
+    }
+    return interaction;
+  }
+
+  // Arrange the grids as best we can into the window, choosing the splitting pattern which
+  // maximises the size of the grids
+  main_grid_transform() {
+    // Get the size of the puzzle, including 0.5 cells of padding on every side
+    const puzzle_width = this.puzzle.width + 0.5 * 2;
+    const puzzle_height = this.puzzle.height + 0.5 * 2;
+
+    let scale = Math.min(
+      canvas.width / puzzle_width,
+      (canvas.height - HEADER_HEIGHT) / puzzle_height,
+    );
+
+    return {
+      x: canvas.width / 2,
+      y: HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2,
+      scale: scale,
+    };
   }
 
   pip_coords(cell_idx, pip_idx, num_pips) {
