@@ -36,7 +36,12 @@ class Game {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    let transform = this.grid_transform();
+    ctx.save();
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.scale, transform.scale);
     this.grid.draw(this.interaction());
+    ctx.restore();
 
     ctx.fillStyle = "white";
     ctx.font = "50px monospace";
@@ -55,31 +60,11 @@ class Game {
         SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
       );
     }
-
-    /*
-    const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
-    if (are_all_solved) {
-      ctx.font = "20px monospace";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        this.has_valid_solutions()
-          ? "Well done, you solved the puzzle.  Hit space to move on..."
-          : "Please group the dots into different amounts in each puzzle",
-        canvas.width / 2,
-        10,
-      );
-    }
-    */
-  }
-
-  update_to_new_puzzle() {
-    this.grid = new Grid(this.current_puzzle());
-    this.update_layout();
   }
 
   // Arrange the grids as best we can into the window, choosing the splitting pattern which
   // maximises the size of the grids
-  update_layout() {
+  grid_transform() {
     // Get the size of the puzzles, including 0.5 cells of padding on every side
     const puzzle = this.grid.puzzle;
     const puzzle_width = puzzle.width + 0.5 * 2;
@@ -90,9 +75,11 @@ class Game {
       (canvas.height - HEADER_HEIGHT) / puzzle_height,
     );
 
-    this.grid.position.x = canvas.width / 2;
-    this.grid.position.y = HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2;
-    this.grid.scale = scale;
+    return {
+      x: canvas.width / 2,
+      y: HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2,
+      scale: scale,
+    };
   }
 
   /* INTERACTION */
@@ -138,8 +125,9 @@ class Game {
     let interaction = undefined;
 
     // Transform mouse coordinates into the puzzle's coord space
-    let local_x = (mouse_x - this.grid.position.x) / this.grid.scale + this.grid.puzzle.width / 2;
-    let local_y = (mouse_y - this.grid.position.y) / this.grid.scale + this.grid.puzzle.height / 2;
+    let transform = this.grid_transform();
+    let local_x = (mouse_x - transform.x) / transform.scale + this.grid.puzzle.width / 2;
+    let local_y = (mouse_y - transform.y) / transform.scale + this.grid.puzzle.height / 2;
 
     for (let vert_idx = 0; vert_idx < this.grid.puzzle.verts.length; vert_idx++) {
       let { x: vert_x, y: vert_y } = this.grid.puzzle.verts[vert_idx];
@@ -169,6 +157,10 @@ class Game {
 
   /* UTILS */
 
+  update_to_new_puzzle() {
+    this.grid = new Grid(this.current_puzzle());
+  }
+
   current_puzzle() {
     return this.puzzles[this.puzzle_idx];
   }
@@ -196,9 +188,6 @@ class Game {
 class Grid {
   constructor(puzzle) {
     this.puzzle = puzzle;
-    // Transform (this is set before the first frame by `Game.arrange_grids`)
-    this.scale = 100;
-    this.position = { x: 0, y: 0 };
     // List of vertex indices which make up the line being drawn
     this.line = [];
     this.is_drawing_line = false;
@@ -318,8 +307,6 @@ class Grid {
 
   draw(interaction) {
     ctx.save();
-    ctx.translate(this.position.x, this.position.y);
-    ctx.scale(this.scale, this.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
 
     // Handle solution animation (mainly colours)
@@ -579,7 +566,6 @@ function on_resize() {
   var rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
-  game.update_layout();
 }
 
 /* MOUSE HANDLING */
