@@ -14,7 +14,7 @@ const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Animation
-const GRID_ENTRY_ANIMATION_TIME = 1.0; // Seconds
+const GRID_ENTRY_ANIMATION_TIME = 0.7; // Seconds
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
@@ -27,23 +27,56 @@ const SOLVED_GRIDS_SIZE = 0.8; // Factor of `HEADER_HEIGHT`
 class Game {
   constructor(puzzles) {
     // Puzzles
-    this.puzzles = puzzles.map((puzzle) => ({ puzzle, solved_grids: [] }));
+    this.puzzles = puzzles;
     this.puzzle_idx = 0;
+    // Grids
+    this.solved_grids = this.puzzles.map((_) => []);
+    this.fading_grids = [];
     this.main_grid = undefined;
     this.create_new_main_grid();
   }
 
   update() {
-    if (this.main_grid.is_ready_to_be_stashed()) {
-      let solved_grids = this.puzzles[this.puzzle_idx].solved_grids;
+    // Remove any `faded_grids` that have fully faded
+    let idxs_to_remove = [];
+    for (let i = 0; i < this.fading_grids.length; i++) {
+      if (
+        Date.now() - this.fading_grids[i].animation.start_time > GRID_ENTRY_ANIMATION_TIME * 1000
+      ) {
+        idxs_to_remove.push(i);
+      }
+    }
+    idxs_to_remove.reverse();
+    for (const i of idxs_to_remove) {
+      this.fading_grids.splice(i, 1);
+    }
 
-      // If the main grid now has a solution, then move it into the `solved_grids` of the
-      // corresponding element of `this.puzzle`.  Also trigger an animation for it.
-      let animation = this.main_grid.animation;
-      animation.start_time = Date.now();
-      animation.start_state = GRID_STATE_MAIN;
-      animation.target_state = { puzzle: this.puzzle_idx, grid_idx: solved_grids.length };
-      solved_grids.push(this.main_grid);
+    // Trigger stashing of the main grid
+    if (this.main_grid.is_ready_to_be_stashed()) {
+      let solved_grids = this.solved_grids[this.puzzle_idx];
+      const pip_group_size = this.main_grid.solution.pip_group_size;
+      // Decide where the new grid should go to keep the grids sorted by solution
+      let idx_of_solved_grid = 0;
+      while (true) {
+        if (idx_of_solved_grid === solved_grids.length) break;
+        if (solved_grids[idx_of_solved_grid].solution.pip_group_size >= pip_group_size) {
+          break;
+        }
+        idx_of_solved_grid++;
+      }
+      // Add the new grid, replacing an existing grid if that grid has the same count
+      let i = idx_of_solved_grid;
+      if (solved_grids[i] && solved_grids[i].solution.pip_group_size === pip_group_size) {
+        solved_grids[i].animate_to({ puzzle: this.puzzle_idx, grid_idx: i, faded: true });
+        this.fading_grids.push(solved_grids[i]);
+        solved_grids[i] = this.main_grid;
+      } else {
+        solved_grids.splice(idx_of_solved_grid, 0, this.main_grid);
+      }
+      // Animate all the puzzle's grids to their new positions
+      for (let i = 0; i < solved_grids.length; i++) {
+        solved_grids[i].animate_to({ puzzle: this.puzzle_idx, grid_idx: i, faded: false });
+      }
       // Create a new main grid to replace the old one
       this.create_new_main_grid();
     }
@@ -52,18 +85,6 @@ class Game {
   draw() {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw grids
-    for (const grid of this.puzzles[this.puzzle_idx].solved_grids) {
-      grid.draw();
-    }
-    this.main_grid.draw();
-
-    ctx.fillStyle = "white";
-    ctx.font = "50px monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(`#${this.puzzle_idx + 1}`, 10, 10);
 
     // Boxes for solved grids
     ctx.strokeStyle = "black";
@@ -76,6 +97,17 @@ class Game {
         SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
       );
     }
+
+    // Draw grids
+    for (const grid of this.solved_grids[this.puzzle_idx]) grid.draw();
+    for (const grid of this.fading_grids) grid.draw();
+    this.main_grid.draw();
+
+    ctx.fillStyle = "white";
+    ctx.font = "50px monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`#${this.puzzle_idx + 1}`, 10, 10);
   }
 
   /* INTERACTION */
@@ -115,7 +147,7 @@ class Game {
   }
 
   current_puzzle() {
-    return this.puzzles[this.puzzle_idx].puzzle;
+    return this.puzzles[this.puzzle_idx];
   }
 
   has_valid_solutions() {
@@ -418,6 +450,7 @@ class Grid {
   transform(state) {
     // Get the rectangle in which the puzzle has to fit
     let rect;
+    let is_zero_size;
     if (state === GRID_STATE_ENTER || state === GRID_STATE_MAIN) {
       rect = {
         x: 0,
@@ -425,6 +458,7 @@ class Grid {
         w: canvas.width,
         h: canvas.height - HEADER_HEIGHT,
       };
+      is_zero_size = state === GRID_STATE_ENTER;
     } else {
       rect = {
         x: canvas.width / 2 + (state.grid_idx - this.puzzle.num_solutions / 2) * HEADER_HEIGHT,
@@ -432,6 +466,7 @@ class Grid {
         w: HEADER_HEIGHT,
         h: HEADER_HEIGHT,
       };
+      is_zero_size = state.faded;
     }
 
     // Scale the puzzle to fill the given `rect`, with 0.5 cells of padding on every side
@@ -441,7 +476,7 @@ class Grid {
     return {
       x: rect.x + rect.w / 2,
       y: rect.y + rect.h / 2,
-      scale: state === GRID_STATE_ENTER ? 0 : scale_to_fill,
+      scale: is_zero_size ? 0 : scale_to_fill,
     };
   }
 
@@ -452,6 +487,12 @@ class Grid {
       x: cell.centre.x + x * PIP_PATTERN_RADIUS,
       y: cell.centre.y + y * PIP_PATTERN_RADIUS,
     };
+  }
+
+  animate_to(state) {
+    this.animation.start_time = Date.now();
+    this.animation.start_state = this.animation.target_state;
+    this.animation.target_state = state;
   }
 
   is_ready_to_be_stashed() {
