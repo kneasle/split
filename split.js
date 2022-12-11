@@ -14,6 +14,7 @@ const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Animation
+const GRID_ENTRY_ANIMATION_TIME = 1.0; // Seconds
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
@@ -29,13 +30,33 @@ class Game {
     this.puzzles = puzzles.map((puzzle) => ({ puzzle, solved_grids: [] }));
     this.puzzle_idx = 0;
     this.main_grid = undefined;
-    this.update_to_new_puzzle();
+    this.create_new_main_grid();
   }
 
-  render() {
+  update() {
+    if (this.main_grid.is_ready_to_be_stashed()) {
+      let solved_grids = this.puzzles[this.puzzle_idx].solved_grids;
+
+      // If the main grid now has a solution, then move it into the `solved_grids` of the
+      // corresponding element of `this.puzzle`.  Also trigger an animation for it.
+      let animation = this.main_grid.animation;
+      animation.start_time = Date.now();
+      animation.start_state = GRID_STATE_MAIN;
+      animation.target_state = { puzzle: this.puzzle_idx, grid_idx: solved_grids.length };
+      solved_grids.push(this.main_grid);
+      // Create a new main grid to replace the old one
+      this.create_new_main_grid();
+    }
+  }
+
+  draw() {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Draw grids
+    for (const grid of this.puzzles[this.puzzle_idx].solved_grids) {
+      grid.draw();
+    }
     this.main_grid.draw();
 
     ctx.fillStyle = "white";
@@ -72,7 +93,7 @@ class Game {
 
     // Update the grids
     this.puzzle_idx = Math.max(0, Math.min(this.puzzles.length - 1, this.puzzle_idx));
-    this.update_to_new_puzzle();
+    this.create_new_main_grid();
   }
 
   on_mouse_move() {
@@ -89,7 +110,7 @@ class Game {
 
   /* UTILS */
 
-  update_to_new_puzzle() {
+  create_new_main_grid() {
     this.main_grid = new Grid(this.current_puzzle());
   }
 
@@ -116,18 +137,27 @@ class Game {
   }
 }
 
+const GRID_STATE_ENTER = "entry";
+const GRID_STATE_MAIN = "main";
+
 /// An instance of a `Puzzle` on the screen
 class Grid {
   constructor(puzzle) {
     this.puzzle = puzzle;
-    // List of vertex indices which make up the line being drawn
-    this.line = [];
+    this.line = []; // List of vertex indices which make up the line being drawn
     this.is_drawing_line = false;
     // For every `Grid`, `solution` is always in one of three states:
     // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
     // 2) `this.solution.is_valid === true`: the solution is valid
     // 3) `this.solution.is_valid === false`: the solution is invalid
     this.solution = undefined;
+
+    // State for animating the transform
+    this.animation = {
+      start_state: GRID_STATE_ENTER,
+      target_state: GRID_STATE_MAIN,
+      start_time: Date.now(),
+    };
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -227,6 +257,7 @@ class Grid {
       let avg_y = total_y / region.cells.length;
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
       // add the pips
+      // TODO: Fancier way to determine where the pips are assigned
       let _this = this;
       function cell_dist(cell_idx) {
         let cell = _this.puzzle.cells[cell_idx];
@@ -244,7 +275,7 @@ class Grid {
         const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
         pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
         // Animate them to their new positions
-        // TODO: Don't move pips that are are in the same place in both solved and unsolved puzzles
+        // TODO: Don't move pips which exist in both the solved and unsolved puzzles
         for (let p = 0; p < num_pips; p++) {
           const { x, y } = this.pip_coords(cell_idx, p, num_pips);
           this.pips[pip_idxs[p]].animate_to({ x, y, color: this.solution_color() });
@@ -257,18 +288,15 @@ class Grid {
     const interaction = this.interaction();
 
     // Update canvas's transformation matrix to the puzzle's local space
-    let transform = this.main_grid_transform();
+    let transform = this.current_transform();
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
 
     // Handle solution animation (mainly colours)
-    const solution_anim_factor = this.solution
-      ? get_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME)
-      : 0;
     const line_color = to_canvas_color(
-      lerp_color(LINE_COLOR, this.solution_color(), solution_anim_factor),
+      lerp_color(LINE_COLOR, this.solution_color(), this.solution_anim_factor()),
     );
 
     // Cell
@@ -325,7 +353,7 @@ class Grid {
       let vert = this.puzzle.verts[vert_idx];
       ctx.lineTo(vert.x, vert.y);
     }
-    // HACK: For loops, draw the first line segment twice to avoid a discontinuity at the first
+    // HACK: For loops, draw the first line segment twice to avoid a sharp corner at the first
     // vertex
     if (this.line.length > 1 && this.line[0] === this.line[this.line.length - 1]) {
       let vert = this.puzzle.verts[this.line[1]];
@@ -347,7 +375,7 @@ class Grid {
   // interacting with the nearest vertex to the mouse).
   interaction() {
     // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.main_grid_transform();
+    let transform = this.current_transform();
     let local_x = (mouse_x - transform.x) / transform.scale + this.puzzle.width / 2;
     let local_y = (mouse_y - transform.y) / transform.scale + this.puzzle.height / 2;
 
@@ -369,22 +397,51 @@ class Grid {
     return interaction;
   }
 
+  current_transform() {
+    let start_transform = this.transform(this.animation.start_state);
+    let target_transform = this.transform(this.animation.target_state);
+    let anim_factor = get_anim_factor(this.animation.start_time, GRID_ENTRY_ANIMATION_TIME);
+    // Lerp every field of the transform
+    let transform = {};
+    for (const field_name of ["x", "y", "scale"]) {
+      transform[field_name] = lerp(
+        start_transform[field_name],
+        target_transform[field_name],
+        anim_factor,
+      );
+    }
+    return transform;
+  }
+
   // Arrange the grids as best we can into the window, choosing the splitting pattern which
   // maximises the size of the grids
-  main_grid_transform() {
-    // Get the size of the puzzle, including 0.5 cells of padding on every side
+  transform(state) {
+    // Get the rectangle in which the puzzle has to fit
+    let rect;
+    if (state === GRID_STATE_ENTER || state === GRID_STATE_MAIN) {
+      rect = {
+        x: 0,
+        y: HEADER_HEIGHT,
+        w: canvas.width,
+        h: canvas.height - HEADER_HEIGHT,
+      };
+    } else {
+      rect = {
+        x: canvas.width / 2 + (state.grid_idx - this.puzzle.num_solutions / 2) * HEADER_HEIGHT,
+        y: 0,
+        w: HEADER_HEIGHT,
+        h: HEADER_HEIGHT,
+      };
+    }
+
+    // Scale the puzzle to fill the given `rect`, with 0.5 cells of padding on every side
     const puzzle_width = this.puzzle.width + 0.5 * 2;
     const puzzle_height = this.puzzle.height + 0.5 * 2;
-
-    let scale = Math.min(
-      canvas.width / puzzle_width,
-      (canvas.height - HEADER_HEIGHT) / puzzle_height,
-    );
-
+    let scale_to_fill = Math.min(rect.w / puzzle_width, rect.h / puzzle_height);
     return {
-      x: canvas.width / 2,
-      y: HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2,
-      scale: scale,
+      x: rect.x + rect.w / 2,
+      y: rect.y + rect.h / 2,
+      scale: state === GRID_STATE_ENTER ? 0 : scale_to_fill,
     };
   }
 
@@ -397,9 +454,22 @@ class Grid {
     };
   }
 
+  is_ready_to_be_stashed() {
+    return this.is_correctly_solved() &&
+      // TODO: Add extra factor for other animations
+      get_uneased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) >= 2.0;
+  }
+
+  solution_anim_factor() {
+    return this.solution ? get_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) : 0;
+  }
+
+  is_correctly_solved() {
+    return this.solution && this.solution.is_correct;
+  }
+
   solution_color() {
-    const is_correct = this.solution && this.solution.is_correct;
-    return is_correct ? CORRECT_COLOR : INCORRECT_COLOR;
+    return this.is_correctly_solved() ? CORRECT_COLOR : INCORRECT_COLOR;
   }
 }
 
@@ -577,7 +647,7 @@ let mouse_y = -10000;
 let mouse_button = false;
 
 window.addEventListener("mousemove", (evt) => {
-  // TODO: Split fast mouse moves into multiple `mouse_down` events
+  // TODO: Split fast mouse moves into multiple smaller `mouse_move` events
   update_mouse(evt);
   game.on_mouse_move();
 });
@@ -599,8 +669,12 @@ function update_mouse(evt) {
 
 /* UTILS */
 
+function get_uneased_anim_factor(start_time, anim_time) {
+  return (Date.now() - start_time) / 1000 / anim_time;
+}
+
 function get_anim_factor(start_time, anim_time) {
-  let anim_factor = (Date.now() - start_time) / 1000 / anim_time;
+  let anim_factor = get_uneased_anim_factor(start_time, anim_time);
   anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
   anim_factor = ease_in_out(anim_factor); // Easing
   return anim_factor;
@@ -655,7 +729,8 @@ function to_canvas_color(color) {
 
 on_resize();
 function frame() {
-  game.render();
+  game.update();
+  game.draw();
   window.requestAnimationFrame(frame);
 }
 frame();
