@@ -15,9 +15,12 @@ const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Animation
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
-const PIP_ANIMATION_SPREAD = 0.7; // Factor of `PIP_ANIMATION_TIME`
+const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.71;
+// Display
+const HEADER_HEIGHT = 100; // Pixels
+const SOLVED_GRIDS_SIZE = 0.8; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
 class Game {
@@ -25,23 +28,15 @@ class Game {
     // Puzzles
     this.puzzles = puzzles;
     this.puzzle_idx = 0;
-    this.grids = [];
-    this.reload_grids();
-
-    this.selected_grid_idx = undefined; // Used to lock interaction to one grid when drawing
+    this.grid = undefined;
+    this.update_to_new_puzzle();
   }
 
   render() {
-    let interaction = this.interaction();
-
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    for (let g_idx = 0; g_idx < this.grids.length; g_idx++) {
-      this.grids[g_idx].draw(
-        (interaction && interaction.grid_idx === g_idx) ? interaction : undefined,
-      );
-    }
+    this.grid.draw(this.interaction());
 
     ctx.fillStyle = "white";
     ctx.font = "50px monospace";
@@ -49,6 +44,19 @@ class Game {
     ctx.textBaseline = "top";
     ctx.fillText(`#${this.puzzle_idx + 1}`, 10, 10);
 
+    // Boxes for solved grids
+    ctx.strokeStyle = "black";
+    let num_solutions = this.current_puzzle().num_solutions;
+    for (let i = 0; i < num_solutions; i++) {
+      ctx.strokeRect(
+        canvas.width / 2 + (i - num_solutions / 2 + (1 - SOLVED_GRIDS_SIZE) / 2) * HEADER_HEIGHT,
+        (1 - SOLVED_GRIDS_SIZE) / 2 * HEADER_HEIGHT,
+        SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
+        SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
+      );
+    }
+
+    /*
     const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
     if (are_all_solved) {
       ctx.font = "20px monospace";
@@ -61,93 +69,30 @@ class Game {
         10,
       );
     }
+    */
   }
 
-  reload_grids() {
-    this.grids = [];
-    for (let i = 0; i < this.current_puzzle().num_solutions; i++) {
-      this.grids.push(new Grid(this.current_puzzle()));
-    }
-    this.arrange_grids();
+  update_to_new_puzzle() {
+    this.grid = new Grid(this.current_puzzle());
+    this.update_layout();
   }
 
   // Arrange the grids as best we can into the window, choosing the splitting pattern which
   // maximises the size of the grids
-  arrange_grids() {
-    const num_grids = this.grids.length;
-    if (num_grids === 0) return; // No point arranging no grids
-
-    // Decide the possible ways to arrange the grids
-    let arrangements = this.grid_arrangements(num_grids);
-
+  update_layout() {
     // Get the size of the puzzles, including 0.5 cells of padding on every side
-    const puzzle = this.grids[0].puzzle;
-    const puzzle_width = puzzle.width + 1;
-    const puzzle_height = puzzle.height + 1;
+    const puzzle = this.grid.puzzle;
+    const puzzle_width = puzzle.width + 0.5 * 2;
+    const puzzle_height = puzzle.height + 0.5 * 2;
 
-    // Decide which arrangement maximises the grid size
-    let best_arrangement = undefined;
-    let best_arrangement_scale = 0;
-    for (const arrangement of arrangements) {
-      // Calculate the scale of the smallest grid
-      let scale = Infinity;
-      for (const { w, h } of arrangement) {
-        scale = Math.min(scale, w / puzzle_width, h / puzzle_height);
-      }
-      if (scale > best_arrangement_scale) {
-        best_arrangement = arrangement;
-        best_arrangement_scale = scale;
-      }
-    }
-
-    // Lay each grid in the centre of its corresponding rectangle
-    for (let i = 0; i < num_grids; i++) {
-      let grid_rect = best_arrangement[i];
-      this.grids[i].position.x = grid_rect.x + grid_rect.w / 2;
-      this.grids[i].position.y = grid_rect.y + grid_rect.h / 2;
-      this.grids[i].scale = best_arrangement_scale;
-    }
-  }
-
-  grid_arrangements(num_grids) {
-    let vertical = [];
-    let horizontal = [];
-    for (let i = 0; i < num_grids; i++) {
-      horizontal.push({ x: i / num_grids, y: 0, w: 1 / num_grids, h: 1 });
-      vertical.push({ x: 0, y: i / num_grids, w: 1, h: 1 / num_grids });
-    }
-    // Arrangements has type `[[NormalizedRect; num_grids]]`
-    let arrangements = [vertical, horizontal];
-    // Add a compound two-tier arrangement for three or four grids:
-    //             A B           A B
-    //              C     or     C D
-    if (num_grids === 3 || num_grids === 4) {
-      // Top row ...
-      let compound_arrangement = [
-        { x: 0, y: 0, w: 0.5, h: 0.5 },
-        { x: 0.5, y: 0, w: 0.5, h: 0.5 },
-      ];
-      // Second row
-      if (num_grids === 3) {
-        compound_arrangement.push({ x: 0, y: 0.5, w: 1, h: 0.5 });
-      } else {
-        compound_arrangement.push({ x: 0, y: 0.5, w: 0.5, h: 0.5 });
-        compound_arrangement.push({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
-      }
-      arrangements.push(compound_arrangement);
-    }
-
-    // Convert 'relative' coordinates (i.e. from `0..1`) to 'absolute' coordinates
-    // (i.e. from '0..canvas.size')
-    let absolute_arrangements = arrangements.map((rects) =>
-      rects.map(({ x, y, w, h }) => ({
-        x: x * canvas.width,
-        y: y * canvas.height,
-        w: w * canvas.width,
-        h: h * canvas.height,
-      }))
+    let scale = Math.min(
+      canvas.width / puzzle_width,
+      (canvas.height - HEADER_HEIGHT) / puzzle_height,
     );
-    return absolute_arrangements;
+
+    this.grid.position.x = canvas.width / 2;
+    this.grid.position.y = HEADER_HEIGHT + (canvas.height - HEADER_HEIGHT) / 2;
+    this.grid.scale = scale;
   }
 
   /* INTERACTION */
@@ -165,30 +110,25 @@ class Game {
 
     // Update the grids
     this.puzzle_idx = Math.max(0, Math.min(this.puzzles.length - 1, this.puzzle_idx));
-    this.reload_grids();
+    this.update_to_new_puzzle();
   }
 
   on_mouse_move() {
-    if (this.selected_grid_idx !== undefined) {
-      // The user is drawing a line in `this.selected_grid_idx`
-      let interaction = this.interaction();
-      console.assert(interaction.grid_idx === this.selected_grid_idx);
-      this.grids[this.selected_grid_idx].update_line(interaction);
+    if (this.grid.is_drawing_line) {
+      this.grid.update_line(this.interaction());
     }
   }
 
   on_mouse_down() {
     let interaction = this.interaction();
     if (interaction) {
-      this.selected_grid_idx = interaction.grid_idx; // Start drawing a line in the interacted grid
-      this.selected_grid().begin_drawing_line(interaction);
+      this.grid.begin_drawing_line(interaction);
     }
   }
 
   on_mouse_up() {
-    if (this.is_drawing_line()) {
-      this.selected_grid().finish_drawing_line(this.interaction);
-      this.selected_grid_idx = undefined; // No line being drawn => no grid selected
+    if (this.grid.is_drawing_line) {
+      this.grid.finish_drawing_line(this.interaction);
     }
   }
 
@@ -197,37 +137,28 @@ class Game {
   interaction() {
     let interaction = undefined;
 
-    for (let grid_idx = 0; grid_idx < this.grids.length; grid_idx++) {
-      // Skip the non-selected grid when drawing lines
-      if (this.is_drawing_line() && this.selected_grid_idx !== grid_idx) {
-        continue;
-      }
+    // Transform mouse coordinates into the puzzle's coord space
+    let local_x = (mouse_x - this.grid.position.x) / this.grid.scale + this.grid.puzzle.width / 2;
+    let local_y = (mouse_y - this.grid.position.y) / this.grid.scale + this.grid.puzzle.height / 2;
 
-      let grid = this.grids[grid_idx];
-      // Transform mouse coordinates into the puzzle's coord space
-      let local_x = (mouse_x - grid.position.x) / grid.scale + grid.puzzle.width / 2;
-      let local_y = (mouse_y - grid.position.y) / grid.scale + grid.puzzle.height / 2;
-
-      for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
-        let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
-        let dX = local_x - vert_x;
-        let dY = local_y - vert_y;
-        let dist = Math.sqrt(dX * dX + dY * dY);
-        if (interaction === undefined || dist < interaction.vert_distance) {
-          interaction = {
-            local_x,
-            local_y,
-            vert_idx,
-            grid_idx,
-            vert_distance: dist,
-          };
-        }
+    for (let vert_idx = 0; vert_idx < this.grid.puzzle.verts.length; vert_idx++) {
+      let { x: vert_x, y: vert_y } = this.grid.puzzle.verts[vert_idx];
+      let dX = local_x - vert_x;
+      let dY = local_y - vert_y;
+      let dist = Math.sqrt(dX * dX + dY * dY);
+      if (interaction === undefined || dist < interaction.vert_distance) {
+        interaction = {
+          local_x,
+          local_y,
+          vert_idx,
+          vert_distance: dist,
+        };
       }
     }
 
     // Check if mouse is too far away, but only when not drawing lines
     if (
-      !this.is_drawing_line() && interaction &&
+      !this.grid.is_drawing_line && interaction &&
       interaction.vert_distance > VERTEX_INTERACTION_RADIUS
     ) {
       interaction = undefined;
@@ -237,14 +168,6 @@ class Game {
   }
 
   /* UTILS */
-
-  is_drawing_line() {
-    return this.selected_grid_idx !== undefined;
-  }
-
-  selected_grid() {
-    return this.grids[this.selected_grid_idx];
-  }
 
   current_puzzle() {
     return this.puzzles[this.puzzle_idx];
@@ -278,6 +201,7 @@ class Grid {
     this.position = { x: 0, y: 0 };
     // List of vertex indices which make up the line being drawn
     this.line = [];
+    this.is_drawing_line = false;
     // For every `Grid`, `solution` is always in one of three states:
     // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
     // 2) `this.solution.is_valid === true`: the solution is valid
@@ -303,6 +227,8 @@ class Grid {
   begin_drawing_line(interaction) {
     if (interaction.vert_idx !== undefined) {
       this.line = [interaction.vert_idx];
+      this.is_drawing_line = true;
+      // Remove current solution
       if (this.solution !== undefined) {
         // Animate all pips back to their start locations
         for (const pip of this.pips) {
@@ -340,6 +266,8 @@ class Grid {
   }
 
   finish_drawing_line(_interaction) {
+    this.is_drawing_line = false;
+
     // Check the user's solution
     const is_line_loop = this.line.length > 1 &&
       this.line[0] === this.line[this.line.length - 1];
@@ -549,7 +477,7 @@ const ctx = canvas.getContext("2d");
 const puzzles = [
   // Intro
   { num_solutions: 1, pattern: "11" },
-  { num_solutions: 1, pattern: "112" },
+  { num_solutions: 1, pattern: "211" },
   { num_solutions: 1, pattern: "123" },
   { num_solutions: 1, pattern: "21|1 " },
   { num_solutions: 2, pattern: "11|11" },
@@ -651,7 +579,7 @@ function on_resize() {
   var rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
-  game.arrange_grids();
+  game.update_layout();
 }
 
 /* MOUSE HANDLING */
