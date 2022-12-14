@@ -291,13 +291,13 @@ class Grid {
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned
       let _this = this;
-      function cell_dist(cell_idx) {
+      const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx) => {
         let cell = _this.puzzle.cells[cell_idx];
         let dx = cell.centre.x - avg_x;
         let dy = cell.centre.y - avg_y;
-        return dx * dx + dy * dy;
-      }
-      const cells_to_add_pips_to = region.cells.sort((c1, c2) => cell_dist(c1) - cell_dist(c2));
+        let dist = dx * dx + dy * dy;
+        return [dist, -(cell.centre.x + cell.centre.y) % 2];
+      });
 
       // Group pips into cells
       let pip_idxs_in_region = region.cells.flatMap((idx) => this.pip_idxs_per_cell[idx]);
@@ -709,6 +709,22 @@ function update_mouse(evt) {
 }
 
 /* UTILS */
+
+function sort_by_key(arr, key) {
+  arr = [...arr];
+  arr.sort((a, b) => {
+    let vs_a = key(a);
+    let vs_b = key(b);
+    for (let i = 0; i < Math.min(vs_a.length, vs_b.length); i++) {
+      if (vs_a[i] < vs_b[i]) return -1;
+      if (vs_a[i] > vs_b[i]) return 1;
+      // If they're equal, check the next item in the arrays (i.e. we're doing
+      // lexicographic/dictionary sort)
+    }
+    return 0; // If no elements are different, the arrays must be equal
+  });
+  return arr;
+}
 
 function get_uneased_anim_factor(start_time, anim_time) {
   return (Date.now() - start_time) / 1000 / anim_time;
