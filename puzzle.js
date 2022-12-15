@@ -2,11 +2,15 @@
 
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
-  constructor(string, num_solutions) {
+  constructor(pattern, x, y, num_solutions) {
+    /* Values used by the rest of the game */
+    this.x = x;
+    this.y = y;
     this.num_solutions = num_solutions;
+    this.solved_grids = [];
 
     // Parse string into a list of pips in each cell
-    let pip_lines = string.split("|");
+    let pip_lines = pattern.split("|");
     this.width = pip_lines[0].length;
     this.height = pip_lines.length;
 

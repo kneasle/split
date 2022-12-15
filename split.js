@@ -30,22 +30,29 @@ class Game {
     this.puzzles = puzzles;
     this.puzzle_idx = 0;
     // Grids
-    this.solved_grids = this.puzzles.map((_) => []);
     this.fading_grids = [];
     this.main_grid = undefined;
     this.create_new_main_grid();
   }
 
-  update() {
+  update(time_delta) {
     // Remove any `faded_grids` that have fully faded
     retain(
       this.fading_grids,
       (grid) => Date.now() - grid.animation.start_time > GRID_ENTRY_ANIMATION_TIME * 1000,
     );
 
-    // Trigger stashing of the main grid
+    // Move puzzle world camera to frame the current puzzle
+    const CAMERA_SPEED = 7;
+    if (camera_y < this.puzzle_idx) {
+      camera_y = Math.min(camera_y + time_delta * CAMERA_SPEED, this.puzzle_idx);
+    } else {
+      camera_y = Math.max(camera_y - time_delta * CAMERA_SPEED, this.puzzle_idx);
+    }
+
+    // Trigger adding the solution on the overlay grid to puzzle scene
     if (this.main_grid.is_ready_to_be_stashed()) {
-      let solved_grids = this.solved_grids[this.puzzle_idx];
+      let solved_grids = this.puzzles[this.puzzle_idx].solved_grids;
       const pip_group_size = this.main_grid.solution.pip_group_size;
       // Decide where the new grid should go to keep the grids sorted by solution
       let idx_of_solved_grid = 0;
@@ -75,26 +82,38 @@ class Game {
   }
 
   draw() {
+    /* BACKGROUND */
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Boxes for solved grids
-    ctx.strokeStyle = "black";
-    let num_solutions = this.current_puzzle().num_solutions;
-    for (let i = 0; i < num_solutions; i++) {
-      ctx.strokeRect(
-        canvas.width / 2 + (i - num_solutions / 2 + (1 - SOLVED_GRIDS_SIZE) / 2) * HEADER_HEIGHT,
-        (1 - SOLVED_GRIDS_SIZE) / 2 * HEADER_HEIGHT,
-        SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
-        SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
-      );
+    /* PUZZLE WORLD */
+    for (const puzzle of this.puzzles) {
+      // Boxes for solved grids
+      ctx.strokeStyle = "black";
+      let num_solutions = puzzle.num_solutions;
+      for (let i = 0; i < num_solutions; i++) {
+        ctx.strokeRect(
+          canvas.width / 2 +
+            (puzzle.x - camera_x + i - num_solutions / 2 + (1 - SOLVED_GRIDS_SIZE) / 2) *
+              HEADER_HEIGHT,
+          (puzzle.y - camera_y + (1 - SOLVED_GRIDS_SIZE) / 2) * HEADER_HEIGHT,
+          SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
+          SOLVED_GRIDS_SIZE * HEADER_HEIGHT,
+        );
+      }
     }
-
-    // Draw grids
-    for (const grid of this.solved_grids[this.puzzle_idx]) grid.draw();
+    for (const puzzle of this.puzzles) {
+      // Solved grids
+      for (let i = 0; i < puzzle.solved_grids.length; i++) {
+        puzzle.solved_grids[i].draw();
+      }
+    }
     for (const grid of this.fading_grids) grid.draw();
-    this.main_grid.draw();
 
+    /* OVERLAYS */
+    // Main grid
+    this.main_grid.draw();
+    // Puzzle number
     ctx.fillStyle = "white";
     ctx.font = "50px monospace";
     ctx.textAlign = "left";
@@ -105,9 +124,9 @@ class Game {
   /* INTERACTION */
 
   on_key_down(evt) {
-    if (evt.key === "h") {
+    if (evt.key === "k") {
       this.puzzle_idx--;
-    } else if (evt.key === "l") {
+    } else if (evt.key === "j") {
       this.puzzle_idx++;
     } else if (evt.key === " " && this.has_valid_solutions()) {
       this.puzzle_idx++;
@@ -453,8 +472,10 @@ class Grid {
       is_zero_size = state === GRID_STATE_ENTER;
     } else {
       rect = {
-        x: canvas.width / 2 + (state.grid_idx - this.puzzle.num_solutions / 2) * HEADER_HEIGHT,
-        y: 0,
+        x: canvas.width / 2 +
+          (this.puzzle.x - camera_x + state.grid_idx - this.puzzle.num_solutions / 2) *
+            HEADER_HEIGHT,
+        y: /* canvas.height / 2 + */ (this.puzzle.y - camera_y) * HEADER_HEIGHT,
         w: HEADER_HEIGHT,
         h: HEADER_HEIGHT,
       };
@@ -564,7 +585,7 @@ const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 // Create puzzle patterns
-const puzzles = [
+let puzzles = [
   // Intro
   { num_solutions: 1, pattern: "11" },
   { num_solutions: 1, pattern: "211" },
@@ -659,7 +680,9 @@ const puzzles = [
   { num_solutions: 3, pattern: "4224|2112|2112|4224" },
   { num_solutions: 1, pattern: "2 1 2|     |1 2 1|    |2 1 2" },
   { num_solutions: 2, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
-].map(({ pattern, num_solutions }) => new Puzzle(pattern, num_solutions));
+];
+let idx = 0;
+puzzles = puzzles.map(({ pattern, num_solutions }) => new Puzzle(pattern, 0, idx++, num_solutions));
 console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
 
@@ -670,6 +693,10 @@ function on_resize() {
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
 }
+
+// Camera coordinates within the world containing the puzzle grids
+let camera_x = 0;
+let camera_y = 0;
 
 /* MOUSE HANDLING */
 
@@ -791,8 +818,11 @@ function to_canvas_color(color) {
 /* START GAMELOOP */
 
 on_resize();
+let last_frame_time = Date.now();
 function frame() {
-  game.update();
+  let time_delta = (Date.now() - last_frame_time) / 1000;
+  last_frame_time = Date.now();
+  game.update(time_delta);
   game.draw();
   window.requestAnimationFrame(frame);
 }
