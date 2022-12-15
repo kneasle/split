@@ -38,18 +38,10 @@ class Game {
 
   update() {
     // Remove any `faded_grids` that have fully faded
-    let idxs_to_remove = [];
-    for (let i = 0; i < this.fading_grids.length; i++) {
-      if (
-        Date.now() - this.fading_grids[i].animation.start_time > GRID_ENTRY_ANIMATION_TIME * 1000
-      ) {
-        idxs_to_remove.push(i);
-      }
-    }
-    idxs_to_remove.reverse();
-    for (const i of idxs_to_remove) {
-      this.fading_grids.splice(i, 1);
-    }
+    retain(
+      this.fading_grids,
+      (grid) => Date.now() - grid.animation.start_time > GRID_ENTRY_ANIMATION_TIME * 1000,
+    );
 
     // Trigger stashing of the main grid
     if (this.main_grid.is_ready_to_be_stashed()) {
@@ -724,6 +716,20 @@ function sort_by_key(arr, key) {
     return 0; // If no elements are different, the arrays must be equal
   });
   return arr;
+}
+
+// Removes any items from `arr` which fail `pred`
+function retain(arr, pred) {
+  let idxs_to_remove = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (!pred(arr[i])) {
+      idxs_to_remove.push(i);
+    }
+  }
+  idxs_to_remove.reverse();
+  for (const i of idxs_to_remove) {
+    arr.splice(i, 1);
+  }
 }
 
 function get_uneased_anim_factor(start_time, anim_time) {
