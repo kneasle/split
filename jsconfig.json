@@ -1,3 +1,1 @@
-{
-  "files": ["split.js", "puzzle.js"]
-}
+{ "files": ["split.js", "puzzle.js", "grid.js"] }
