@@ -86,7 +86,7 @@ class Game {
       let num_solutions = puzzle.num_solutions;
       // Outline
       let min_x = canvas.width / 2 + (puzzle.x - camera_x - num_solutions / 2) * PUZZLE_WORLD_SCALE;
-      let min_y = canvas.height / 2 + (puzzle.y - camera_y) * PUZZLE_WORLD_SCALE;
+      let min_y = canvas.height / 2 + (puzzle.y - camera_y - 1 / 2) * PUZZLE_WORLD_SCALE;
       ctx.strokeRect(min_x, min_y, num_solutions * PUZZLE_WORLD_SCALE, PUZZLE_WORLD_SCALE);
       // Boxes for solved grids
       for (let i = 0; i < num_solutions; i++) {
@@ -107,36 +107,9 @@ class Game {
     // Solved grids
     for (const grid of this.solved_grids) grid.draw();
 
-    /* OVERLAYS */
-    /*
-    // Main grid
-    this.main_grid.draw();
-    // Puzzle number
-    ctx.fillStyle = "white";
-    ctx.font = "50px monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(`#${this.puzzle_idx + 1}`, 10, 10);
-    */
   }
 
   /* INTERACTION */
-
-  on_key_down(evt) {
-    if (evt.key === "k") {
-      this.puzzle_idx--;
-    } else if (evt.key === "j") {
-      this.puzzle_idx++;
-    } else if (evt.key === " " && this.has_valid_solutions()) {
-      this.puzzle_idx++;
-    } else {
-      return; // Don't update the puzzle if the keypress wasn't interesting
-    }
-
-    // Update the grids
-    this.puzzle_idx = Math.max(0, Math.min(this.puzzles.length - 1, this.puzzle_idx));
-    this.create_new_main_grid();
-  }
 
   on_mouse_move(dx, dy) {
     if (this.overlay) {
@@ -168,32 +141,9 @@ class Game {
 
   /* UTILS */
 
+  // TODO: Remove this
   create_new_main_grid() {
-    this.overlay = new Grid(this.current_puzzle());
-  }
-
-  current_puzzle() {
-    return this.puzzles[this.puzzle_idx];
-  }
-
-  has_valid_solutions() {
-    const are_all_solved = this.grids.every((grid) => grid.solution && grid.solution.is_correct);
-
-    const grid_solution_numbers = this
-      .grids
-      .filter((grid) => grid.solution !== undefined)
-      .map((grid) => grid.solution.pip_group_size);
-    grid_solution_numbers.sort();
-    let are_all_different = true;
-    for (let g = 0; g < grid_solution_numbers.length - 1; g++) {
-      if (grid_solution_numbers[g] === grid_solution_numbers[g + 1]) {
-        are_all_different = false;
-      }
-    }
-
-    return are_all_solved && are_all_different;
-  }
-}
+    this.overlay = new Grid(this.puzzles[this.puzzle_idx]);
   }
 }
 
@@ -337,7 +287,6 @@ window.addEventListener("mouseup", (evt) => {
   update_mouse(evt);
   game.on_mouse_up();
 });
-window.addEventListener("keydown", (evt) => game.on_key_down(evt));
 
 function update_mouse(evt) {
   let new_mouse_x = evt.clientX * window.devicePixelRatio;
