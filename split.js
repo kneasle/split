@@ -21,7 +21,7 @@ const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 const VERTEX_INTERACTION_RADIUS = 0.4;
 // Display
 const PUZZLE_WORLD_SCALE = 100; // Pixels
-const SOLVED_GRIDS_SIZE = 0.8; // Factor of `HEADER_HEIGHT`
+const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
 class Game {
@@ -79,34 +79,54 @@ class Game {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     /* PUZZLE WORLD */
+    let { scale } = this.current_transform();
+    // Puzzles
     for (let i = 0; i < this.puzzles.length; i++) {
       let puzzle = this.puzzles[i];
-
-      ctx.strokeStyle = "black";
       let num_solutions = puzzle.num_solutions;
+      ctx.strokeStyle = "black";
       // Outline
-      let min_x = canvas.width / 2 + (puzzle.x - camera_x - num_solutions / 2) * PUZZLE_WORLD_SCALE;
-      let min_y = canvas.height / 2 + (puzzle.y - camera_y - 1 / 2) * PUZZLE_WORLD_SCALE;
-      ctx.strokeRect(min_x, min_y, num_solutions * PUZZLE_WORLD_SCALE, PUZZLE_WORLD_SCALE);
+      let min = this.transform_point(puzzle.x - num_solutions / 2, puzzle.y - 1 / 2);
+      ctx.strokeRect(min.x, min.y, num_solutions * scale, scale);
       // Boxes for solved grids
       for (let i = 0; i < num_solutions; i++) {
-        ctx.strokeRect(
-          min_x + (1 - SOLVED_GRIDS_SIZE) / 2 * PUZZLE_WORLD_SCALE + i * PUZZLE_WORLD_SCALE,
-          min_y + (1 - SOLVED_GRIDS_SIZE) / 2 * PUZZLE_WORLD_SCALE,
-          SOLVED_GRIDS_SIZE * PUZZLE_WORLD_SCALE,
-          SOLVED_GRIDS_SIZE * PUZZLE_WORLD_SCALE,
+        let min = this.transform_point(
+          puzzle.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
+          puzzle.y - 1 / 2 + SOLVED_GRIDS_BORDER,
         );
+        let size = (1 - SOLVED_GRIDS_BORDER * 2) * scale;
+        ctx.strokeRect(min.x, min.y, size, size);
       }
       // Puzzle Number
       ctx.fillStyle = "black";
       ctx.font = "50px monospace";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillText(`#${i + 1}`, min_x - 10, min_y + 0.5 * PUZZLE_WORLD_SCALE);
+      ctx.fillText(`#${i + 1}`, min.x - 10, min.y + 0.5 * scale);
     }
     // Solved grids
     for (const grid of this.solved_grids) grid.draw();
+  }
 
+  /* TRANSFORMS */
+
+  current_transform() {
+    // TODO: Lerp the state when doing ease in/out for the overlay
+    return {
+      camera_x,
+      camera_y,
+      scale: PUZZLE_WORLD_SCALE,
+      post_x: canvas.width / 2,
+      post_y: canvas.height / 2,
+    };
+  }
+
+  transform_point(x, y) {
+    let t = this.current_transform();
+    return {
+      x: (x - t.camera_x) * t.scale + t.post_x,
+      y: (y - t.camera_y) * t.scale + t.post_y,
+    };
   }
 
   /* INTERACTION */
@@ -117,8 +137,9 @@ class Game {
     } else {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
-        camera_x -= dx / PUZZLE_WORLD_SCALE;
-        camera_y -= dy / PUZZLE_WORLD_SCALE;
+        let { scale } = this.current_transform();
+        camera_x -= dx / scale;
+        camera_y -= dy / scale;
       }
     }
   }
