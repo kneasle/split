@@ -25,7 +25,7 @@ class Color {
       b = hex.slice(5, 7);
       multiplier = 1;
     } else {
-      throw Error("Colour passed non-hex string")
+      throw Error("Colour passed non-hex string");
     }
 
     return new Color(
@@ -100,7 +100,11 @@ class Tween<T> {
     this._anim_start = Date.now();
   }
 
-  animate_to_with_random_delay(target: T, lerp_fn: (a: T, b: T, t: number) => T, delay_factor: number) {
+  animate_to_with_random_delay(
+    target: T,
+    lerp_fn: (a: T, b: T, t: number) => T,
+    delay_factor: number,
+  ) {
     this.source = this.current_state(lerp_fn);
     this.target = target;
     this._anim_start = Date.now() + Math.random() * 1000 * this._duration * delay_factor;
@@ -145,26 +149,49 @@ function ease_in_out(x: number): number {
 /* MATHS */
 
 class Transform {
-  x: number;
-  y: number;
+  dx: number;
+  dy: number;
   scale: number;
 
-  constructor(x: number, y: number, scale: number) {
-    this.x = x;
-    this.y = y;
+  constructor(dx: number, dy: number, scale: number) {
+    this.dx = dx;
+    this.dy = dy;
     this.scale = scale;
+  }
+
+  then(other: Transform): Transform {
+    return new Transform(
+      this.dx + other.dx / this.scale,
+      this.dy + other.dy / this.scale,
+      this.scale * other.scale,
+    );
+  }
+
+  inv(): Transform {
+    return new Transform(
+      -this.dx * this.scale,
+      -this.dy * this.scale,
+      1 / this.scale,
+    );
+  }
+
+  transform_point(x: number, y: number): Vec2 {
+    return {
+      x: (x + this.dx) * this.scale,
+      y: (y + this.dy) * this.scale,
+    };
   }
 
   static lerp(a: Transform, b: Transform, t: number): Transform {
     return new Transform(
-      lerp(a.x, b.x, t),
-      lerp(a.y, b.y, t),
-      lerp(a.scale, b.scale, t)
+      lerp(a.dx, b.dx, t),
+      lerp(a.dy, b.dy, t),
+      lerp(a.scale, b.scale, t),
     );
   }
 }
 
-type Vec2 = { x: number, y: number };
+type Vec2 = { x: number; y: number };
 
 function lerp(a: number, b: number, t: number): number {
   return a * (1 - t) + b * t;

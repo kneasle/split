@@ -25,12 +25,16 @@ const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
 class Game {
+  /* Puzzle world */
+  camera_pos: Vec2;
   puzzles: Puzzle[];
   fading_grids: Grid[];
+  /* Puzzle overlay */
   overlay: Overlay | undefined;
 
   constructor(puzzles: Puzzle[]) {
     // Puzzle world
+    this.camera_pos = { x: 0, y: 0 };
     this.puzzles = puzzles;
     this.fading_grids = [];
     // Overlay
@@ -41,7 +45,7 @@ class Game {
     // Remove any grids which have fully faded
     retain(
       this.fading_grids,
-      (grid) => !(is_faded(grid.transform_tween.target) && grid.transform_tween.is_complete())
+      (grid) => !(is_faded(grid.transform_tween.target) && grid.transform_tween.is_complete()),
     );
 
     // Trigger adding the solution on the overlay grid to puzzle scene
@@ -82,18 +86,22 @@ class Game {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     /* PUZZLE WORLD */
-    let { scale } = this.current_transform();
+    let transform = this.transform();
+    let scale = transform.scale;
     // Puzzles
     for (let i = 0; i < this.puzzles.length; i++) {
       let puzzle = this.puzzles[i];
       let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
-      let min = this.transform_point(puzzle.pos.x - num_solutions / 2, puzzle.pos.y - 1 / 2);
+      let min = transform.transform_point(
+        puzzle.pos.x - num_solutions / 2,
+        puzzle.pos.y - 1 / 2,
+      );
       ctx.strokeRect(min.x, min.y, num_solutions * scale, scale);
       // Boxes for solved grids
       for (let i = 0; i < num_solutions; i++) {
-        let min = this.transform_point(
+        let min = transform.transform_point(
           puzzle.pos.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
           puzzle.pos.y - 1 / 2 + SOLVED_GRIDS_BORDER,
         );
@@ -115,77 +123,60 @@ class Game {
       }
     }
 
-    for (const grid of this.fading_grids) grid.draw();
+    for (const grid of this.fading_grids) grid.draw(transform);
     for (const g of grids) {
       if (!g.transform_tween.is_animating()) {
-        g.draw();
+        g.draw(transform);
       }
     }
     // Draw animating grids above normal grids
     for (const g of grids) {
       if (g.transform_tween.is_animating()) {
-        g.draw();
+        g.draw(transform);
       }
     }
-    if (this.overlay) this.overlay.grid.draw();
+    if (this.overlay) this.overlay.grid.draw(transform);
   }
 
   /* TRANSFORMS */
 
-  current_transform() {
+  transform(): Transform {
     // TODO: Lerp the state when doing ease in/out for the overlay
-    return {
-      camera_x,
-      camera_y,
-      scale: PUZZLE_WORLD_SCALE,
-      post_x: canvas.width / 2,
-      post_y: canvas.height / 2,
-    };
-  }
-
-  transform_point(x: number, y: number) {
-    let t = this.current_transform();
-    return {
-      x: (x - t.camera_x) * t.scale + t.post_x,
-      y: (y - t.camera_y) * t.scale + t.post_y,
-    };
-  }
-
-  inv_transform_point(x: number, y: number) {
-    let t = this.current_transform();
-    return {
-      x: (x - t.post_x) / t.scale + t.camera_x,
-      y: (y - t.post_y) / t.scale + t.camera_y,
-    };
+    let pure_camera_transform = new Transform(
+      -this.camera_pos.x,
+      -this.camera_pos.y,
+      PUZZLE_WORLD_SCALE,
+    ).then(new Transform(canvas.width / 2, canvas.height / 2, 1));
+    return pure_camera_transform;
   }
 
   /* INTERACTION */
 
   on_mouse_move(dx: number, dy: number) {
     if (this.overlay) {
-      this.overlay.grid.on_mouse_move();
+      this.overlay.grid.on_mouse_move(this.transform());
     } else {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
-        let { scale } = this.current_transform();
-        camera_x -= dx / scale;
-        camera_y -= dy / scale;
+        let { scale } = this.transform();
+        this.camera_pos.x -= dx / scale;
+        this.camera_pos.y -= dy / scale;
       }
     }
   }
 
   on_mouse_down() {
     if (this.overlay) {
-      const was_click_registered = this.overlay.grid.on_mouse_down();
+      const was_click_registered = this.overlay.grid.on_mouse_down(this.transform());
       if (!was_click_registered) this.overlay = undefined;
     } else {
       // No overlay grid means we should be interacting with the puzzle world
-      let { x, y } = this.inv_transform_point(mouse_x, mouse_y);
+      let { x, y } = this.transform().inv().transform_point(mouse_x, mouse_y);
       for (let i = 0; i < this.puzzles.length; i++) {
         let p = puzzles[i];
         if (x < p.pos.x - p.num_solutions / 2 || x > p.pos.x + p.num_solutions / 2) continue;
         if (y < p.pos.y - 1 / 2 || y > p.pos.y + 1 / 2) continue;
-        // Mouse is within this puzzle's rect
+        // Mouse is within this puzzle's rect, so open it as a puzzle
         this.overlay = {
           grid: new Grid(p),
           puzzle_idx: i,
@@ -203,7 +194,7 @@ class Game {
   }
 }
 
-type Overlay = { grid: Grid, puzzle_idx: number };
+type Overlay = { grid: Grid; puzzle_idx: number };
 
 /* ===== BOILERPLATE CODE FOR BROWSER INTERFACING ===== */
 
@@ -308,7 +299,9 @@ let _puzzles = [
   { num_solutions: 3, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
 ];
 let idx = 0;
-let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) => new Puzzle(pattern, 0, idx++, num_solutions));
+let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) =>
+  new Puzzle(pattern, 0, idx++, num_solutions)
+);
 console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
 
@@ -319,10 +312,6 @@ function on_resize() {
   canvas.width = rect.width * window.devicePixelRatio;
   canvas.height = rect.height * window.devicePixelRatio;
 }
-
-// Camera coordinates within the world containing the puzzle grids
-let camera_x = 0;
-let camera_y = 0;
 
 /* MOUSE HANDLING */
 
@@ -346,7 +335,7 @@ window.addEventListener("mouseup", (evt) => {
   game.on_mouse_up();
 });
 
-function update_mouse(evt: MouseEvent): { dx: number, dy: number } {
+function update_mouse(evt: MouseEvent) {
   let new_mouse_x = evt.clientX * window.devicePixelRatio;
   let new_mouse_y = evt.clientY * window.devicePixelRatio;
   let dx = new_mouse_x - mouse_x;

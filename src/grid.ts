@@ -1,7 +1,7 @@
 const GRID_STATE_ENTER = "entry";
 const GRID_STATE_MAIN = "main";
 
-type TransformState = "entry" | "main" | { puzzle_idx: number, grid_idx: number, faded: boolean };
+type TransformState = "entry" | "main" | { puzzle_idx: number; grid_idx: number; faded: boolean };
 
 function is_faded(s: TransformState): boolean {
   if (typeof s === "object") return s.faded;
@@ -47,8 +47,8 @@ class Grid {
     }
   }
 
-  on_mouse_down(): boolean {
-    const interaction = this.interaction()!;
+  on_mouse_down(puzzle_world_transform: Transform): boolean {
+    const interaction = this.interaction(puzzle_world_transform)!;
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
       this.line = [interaction.vert_idx];
@@ -73,10 +73,10 @@ class Grid {
     return true;
   }
 
-  on_mouse_move() {
+  on_mouse_move(puzzle_world_transform: Transform) {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
-    const interaction = this.interaction()!;
+    const interaction = this.interaction(puzzle_world_transform)!;
 
     let new_vert = interaction.vert_idx;
     let last_vert = this.line[this.line.length - 1];
@@ -156,13 +156,13 @@ class Grid {
     }
   }
 
-  draw() {
-    const interaction = this.interaction();
+  draw(puzzle_world_transform: Transform) {
+    const interaction = this.interaction(puzzle_world_transform);
 
     // Update canvas's transformation matrix to the puzzle's local space
-    let transform = this.current_transform();
+    let transform = this.current_transform(puzzle_world_transform);
     ctx.save();
-    ctx.translate(transform.x, transform.y);
+    ctx.translate(transform.dx, transform.dy);
     ctx.scale(transform.scale, transform.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
 
@@ -245,11 +245,11 @@ class Grid {
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
   // interacting with the nearest vertex to the mouse).
-  interaction() {
+  interaction(puzzle_world_transform: Transform) {
     // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.current_transform();
-    let local_x = (mouse_x - transform.x) / transform.scale + this.puzzle.width / 2;
-    let local_y = (mouse_y - transform.y) / transform.scale + this.puzzle.height / 2;
+    let transform = this.current_transform(puzzle_world_transform);
+    let local_x = (mouse_x - transform.dx) / transform.scale + this.puzzle.width / 2;
+    let local_y = (mouse_y - transform.dy) / transform.scale + this.puzzle.height / 2;
 
     let interaction = undefined;
     for (let vert_idx = 0; vert_idx < this.puzzle.verts.length; vert_idx++) {
@@ -269,13 +269,18 @@ class Grid {
     return interaction;
   }
 
-  current_transform() {
+  current_transform(puzzle_world_transform: Transform) {
     return this.transform_tween.current_state(
-      (a, b, t) => Transform.lerp(this.transform(a), this.transform(b), t)
+      (a, b, t) =>
+        Transform.lerp(
+          this.transform(a, puzzle_world_transform),
+          this.transform(b, puzzle_world_transform),
+          t,
+        ),
     );
   }
 
-  transform(state: TransformState): Transform {
+  transform(state: TransformState, puzzle_world_transform: Transform): Transform {
     // Get the rectangle in which the puzzle has to fit
     let rect;
     let is_zero_size;
@@ -288,16 +293,12 @@ class Grid {
       };
       is_zero_size = state === GRID_STATE_ENTER;
     } else {
-      rect = {
-        x: canvas.width / 2 +
-          (this.puzzle.pos.x - camera_x + state.grid_idx - this.puzzle.num_solutions / 2)
-          * PUZZLE_WORLD_SCALE,
-        y: canvas.height / 2 +
-          (this.puzzle.pos.y - camera_y - 0.5)
-          * PUZZLE_WORLD_SCALE,
-        w: PUZZLE_WORLD_SCALE,
-        h: PUZZLE_WORLD_SCALE,
-      };
+      // TODO: Don't access `game` directly, instead pass transform
+      let { x, y } = puzzle_world_transform.transform_point(
+        this.puzzle.pos.x + state.grid_idx - this.puzzle.num_solutions / 2,
+        this.puzzle.pos.y - 0.5,
+      );
+      rect = { x, y, w: PUZZLE_WORLD_SCALE, h: PUZZLE_WORLD_SCALE };
       is_zero_size = state.faded;
     }
 
@@ -362,7 +363,7 @@ class Pip {
     this.state_tween.animate_to_with_random_delay(
       target_state,
       lerp_pip_state,
-      PIP_ANIMATION_SPREAD
+      PIP_ANIMATION_SPREAD,
     );
   }
 
@@ -371,7 +372,7 @@ class Pip {
   }
 }
 
-type PipState = { x: number, y: number, color: Color };
+type PipState = { x: number; y: number; color: Color };
 
 function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
   return {
@@ -382,7 +383,7 @@ function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
 }
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
-function dice_pattern(num_pips: number): { x: number, y: number }[] {
+function dice_pattern(num_pips: number): { x: number; y: number }[] {
   const pip_pair_patterns = [
     [1, -1], // 2
     [1, 1], // 4
