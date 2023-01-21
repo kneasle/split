@@ -2,28 +2,26 @@
 
 type Cell = {
   verts: number[],
-  centre: { x: number, y: number },
+  centre: Vec2,
   pips: number,
   neighbours: { edge_idx: number, cell_idx: number }[],
 };
 
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
-  x: number;
-  y: number;
+  pos: Vec2;
   num_solutions: number;
   solved_grids: Grid[];
   width: number;
   height: number;
 
-  verts: { x: number, y: number }[];
+  verts: Vec2[];
   edges: { v1: number, v2: number }[];
   cells: Cell[];
 
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
     /* Values used by the rest of the game */
-    this.x = x;
-    this.y = y;
+    this.pos = { x, y };
     this.num_solutions = num_solutions;
     this.solved_grids = [];
 

@@ -1,13 +1,20 @@
 const GRID_STATE_ENTER = "entry";
 const GRID_STATE_MAIN = "main";
 
+type TransformState = "entry" | "main" | { puzzle_idx: number, grid_idx: number, faded: boolean };
+
+function is_faded(s: TransformState): boolean {
+  if (typeof s === "object") return s.faded;
+  else return false;
+}
+
 /// An instance of a `Puzzle` on the screen
 class Grid {
   puzzle: Puzzle;
   line: number[];
   is_drawing_line: boolean;
   solution: any; // TODO: Explicit type
-  animation: any; // TODO: Explici type
+  animation: Tween<TransformState>; // TODO: Explicit type
 
   pips: Pip[];
   pip_idxs_per_cell: number[][];
@@ -23,11 +30,7 @@ class Grid {
     this.solution = undefined;
 
     // State for animating the transform
-    this.animation = {
-      start_state: GRID_STATE_ENTER,
-      target_state: GRID_STATE_MAIN,
-      start_time: Date.now(),
-    };
+    this.animation = new Tween(GRID_STATE_ENTER, GRID_STATE_MAIN, GRID_ENTRY_ANIMATION_TIME);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -44,7 +47,7 @@ class Grid {
     }
   }
 
-  on_mouse_down() {
+  on_mouse_down(): boolean {
     const interaction = this.interaction()!;
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
@@ -56,7 +59,7 @@ class Grid {
     ) {
       this.line = []; // Mouse is on the grid but can't start a line
     } else {
-      return; // Mouse is fully off the grid, so don't register the click
+      return false; // Mouse is fully off the grid, so don't register the click
     }
 
     // Remove current solution
@@ -67,6 +70,7 @@ class Grid {
       }
     }
     this.solution = undefined;
+    return true;
   }
 
   on_mouse_move() {
@@ -105,8 +109,7 @@ class Grid {
     this.is_drawing_line = false;
 
     // Check the user's solution
-    const is_line_loop = this.line.length > 1 &&
-      this.line[0] === this.line[this.line.length - 1];
+    const is_line_loop = this.line.length > 1 && this.line[0] === this.line[this.line.length - 1];
     if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
     this.solution = this.puzzle.get_solution(this.line);
     this.solution.time = Date.now();
@@ -267,18 +270,12 @@ class Grid {
   }
 
   current_transform() {
-    let start_transform = this.transform(this.animation.start_state);
-    let target_transform = this.transform(this.animation.target_state);
-    let anim_factor = get_anim_factor(this.animation.start_time, GRID_ENTRY_ANIMATION_TIME);
-    // Lerp every field of the transform
-    return {
-      x: lerp(start_transform.x, target_transform.x, anim_factor),
-      y: lerp(start_transform.y, target_transform.y, anim_factor),
-      scale: lerp(start_transform.scale, target_transform.scale, anim_factor),
-    };
+    return this.animation.current(
+      (a, b, t) => Transform.lerp(this.transform(a), this.transform(b), t)
+    );
   }
 
-  transform(state) {
+  transform(state: TransformState): Transform {
     // Get the rectangle in which the puzzle has to fit
     let rect;
     let is_zero_size;
@@ -293,9 +290,11 @@ class Grid {
     } else {
       rect = {
         x: canvas.width / 2 +
-          (this.puzzle.x - camera_x + state.grid_idx - this.puzzle.num_solutions / 2) *
-          PUZZLE_WORLD_SCALE,
-        y: /* canvas.height / 2 + */ (this.puzzle.y - camera_y) * PUZZLE_WORLD_SCALE,
+          (this.puzzle.pos.x - camera_x + state.grid_idx - this.puzzle.num_solutions / 2)
+          * PUZZLE_WORLD_SCALE,
+        y: canvas.height / 2 +
+          (this.puzzle.pos.y - camera_y - 0.5)
+          * PUZZLE_WORLD_SCALE,
         w: PUZZLE_WORLD_SCALE,
         h: PUZZLE_WORLD_SCALE,
       };
@@ -306,11 +305,11 @@ class Grid {
     const puzzle_width = this.puzzle.width + 0.5 * 2;
     const puzzle_height = this.puzzle.height + 0.5 * 2;
     let scale_to_fill = Math.min(rect.w / puzzle_width, rect.h / puzzle_height);
-    return {
-      x: rect.x + rect.w / 2,
-      y: rect.y + rect.h / 2,
-      scale: is_zero_size ? 0 : scale_to_fill,
-    };
+    return new Transform(
+      rect.x + rect.w / 2,
+      rect.y + rect.h / 2,
+      is_zero_size ? 0 : scale_to_fill,
+    );
   }
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips: number | undefined) {
@@ -322,20 +321,18 @@ class Grid {
     };
   }
 
-  animate_to(state) {
-    this.animation.start_time = Date.now();
-    this.animation.start_state = this.animation.target_state;
-    this.animation.target_state = state;
+  animate_to(state: TransformState) {
+    this.animation.animate_to(state, (_a, b, _t) => b);
   }
 
   is_ready_to_be_stashed() {
     return this.is_correctly_solved() &&
       // TODO: Add extra factor for other animations
-      get_uneased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) >= 2.0;
+      uneased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) >= 2.0;
   }
 
   solution_anim_factor() {
-    return this.solution ? get_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) : 0;
+    return this.solution ? eased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) : 0;
   }
 
   is_correctly_solved() {
@@ -376,7 +373,7 @@ class Pip {
   }
 
   current_state() {
-    const anim_factor = get_anim_factor(this.anim_start_time, SOLVE_ANIMATION_TIME);
+    const anim_factor = eased_anim_factor(this.anim_start_time, SOLVE_ANIMATION_TIME);
     return {
       x: lerp(this.anim_source.x, this.anim_target.x, anim_factor),
       y: lerp(this.anim_source.y, this.anim_target.y, anim_factor),

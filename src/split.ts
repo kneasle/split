@@ -1,52 +1,5 @@
 /* Game code for Split */
 
-class Color {
-  r: number;
-  g: number;
-  b: number;
-
-  constructor(r: number, g: number, b: number) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-  }
-
-  static from_hex(hex: string): Color {
-    // Parse color as a hex string
-    let r, g, b, multiplier;
-    if (hex.length === 4) {
-      r = hex[1];
-      g = hex[2];
-      b = hex[3];
-      multiplier = 0x11;
-    } else if (hex.length === 7) {
-      r = hex.slice(1, 3);
-      g = hex.slice(3, 5);
-      b = hex.slice(5, 7);
-      multiplier = 1;
-    } else {
-      throw Error("Colour passed non-hex string")
-    }
-
-    return new Color(
-      parseInt(r, 16) * multiplier,
-      parseInt(g, 16) * multiplier,
-      parseInt(b, 16) * multiplier,
-    );
-  }
-
-  to_canvas_color(): string {
-    return `rgb(${Math.round(this.r)}, ${Math.round(this.g)}, ${Math.round(this.b)})`;
-  }
-
-  static lerp(c1: Color, c2: Color, t: number): Color {
-    let r = lerp(c1.r, c2.r, t);
-    let g = lerp(c1.g, c2.g, t);
-    let b = lerp(c1.b, c2.b, t);
-    return new Color(r, g, b);
-  }
-}
-
 // Colors
 const BG_COLOR = Color.from_hex("#030");
 const CELL_COLOR = Color.from_hex("#070");
@@ -73,34 +26,29 @@ const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 /// Singleton instance which handles all top-level game logic
 class Game {
   puzzles: Puzzle[];
-  solved_grids: Grid[];
-  fading_grids: Grid[]; // TODO: Put this in solved_grids?
-  overlay: Grid | undefined;
-  puzzle_idx: number; // TODO: Put this in overlay?
+  fading_grids: Grid[];
+  overlay: Overlay | undefined;
 
   constructor(puzzles: Puzzle[]) {
     // Puzzle world
     this.puzzles = puzzles;
-    this.solved_grids = [];
     this.fading_grids = [];
     // Overlay
     this.overlay = undefined;
-    this.puzzle_idx = 0;
   }
 
   update(_time_delta: number) {
-    // Remove any solved grids which have fully faded
+    // Remove any grids which have fully faded
     retain(
-      this.solved_grids,
-      (grid) =>
-        grid.animation.target_state.faded === true &&
-        Date.now() - grid.animation.start_time <= GRID_ENTRY_ANIMATION_TIME * 1000,
+      this.fading_grids,
+      (grid) => !(is_faded(grid.animation.target) && grid.animation.is_complete())
     );
 
     // Trigger adding the solution on the overlay grid to puzzle scene
-    if (this.overlay && this.overlay.is_ready_to_be_stashed()) {
-      let solved_grids = this.puzzles[this.puzzle_idx].solved_grids;
-      const pip_group_size = this.overlay.solution.pip_group_size;
+    if (this.overlay && this.overlay.grid.is_ready_to_be_stashed()) {
+      let { grid, puzzle_idx } = this.overlay;
+      let solved_grids = this.puzzles[puzzle_idx].solved_grids;
+      const pip_group_size = grid.solution.pip_group_size;
       // Decide where the new grid should go to keep the grids sorted by solution
       let idx_of_solved_grid = 0;
       while (true) {
@@ -113,18 +61,18 @@ class Game {
       // Add the new grid, replacing an existing grid if that grid has the same count
       let i = idx_of_solved_grid;
       if (solved_grids[i] && solved_grids[i].solution.pip_group_size === pip_group_size) {
-        solved_grids[i].animate_to({ puzzle: this.puzzle_idx, grid_idx: i, faded: true });
+        solved_grids[i].animate_to({ puzzle_idx, grid_idx: i, faded: true });
         this.fading_grids.push(solved_grids[i]);
-        solved_grids[i] = this.overlay;
+        solved_grids[i] = grid;
       } else {
-        solved_grids.splice(idx_of_solved_grid, 0, this.overlay);
+        solved_grids.splice(idx_of_solved_grid, 0, grid);
       }
       // Animate all the puzzle's grids to their new positions
       for (let i = 0; i < solved_grids.length; i++) {
-        solved_grids[i].animate_to({ puzzle: this.puzzle_idx, grid_idx: i, faded: false });
+        solved_grids[i].animate_to({ puzzle_idx, grid_idx: i, faded: false });
       }
       // Create a new main grid to replace the old one
-      // this.create_new_main_grid(); // TODO: 
+      this.overlay.grid = new Grid(this.puzzles[puzzle_idx]);
     }
   }
 
@@ -141,13 +89,13 @@ class Game {
       let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
-      let min = this.transform_point(puzzle.x - num_solutions / 2, puzzle.y - 1 / 2);
+      let min = this.transform_point(puzzle.pos.x - num_solutions / 2, puzzle.pos.y - 1 / 2);
       ctx.strokeRect(min.x, min.y, num_solutions * scale, scale);
       // Boxes for solved grids
       for (let i = 0; i < num_solutions; i++) {
         let min = this.transform_point(
-          puzzle.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
-          puzzle.y - 1 / 2 + SOLVED_GRIDS_BORDER,
+          puzzle.pos.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
+          puzzle.pos.y - 1 / 2 + SOLVED_GRIDS_BORDER,
         );
         let size = (1 - SOLVED_GRIDS_BORDER * 2) * scale;
         ctx.strokeRect(min.x, min.y, size, size);
@@ -161,7 +109,12 @@ class Game {
     }
     // Grids
     for (const grid of this.fading_grids) grid.draw();
-    for (const grid of this.solved_grids) grid.draw();
+    for (const p of this.puzzles) {
+      for (const g of p.solved_grids) {
+        g.draw();
+      }
+    }
+    if (this.overlay) this.overlay.grid.draw();
   }
 
   /* TRANSFORMS */
@@ -185,11 +138,19 @@ class Game {
     };
   }
 
+  inv_transform_point(x: number, y: number) {
+    let t = this.current_transform();
+    return {
+      x: (x - t.post_x) / t.scale + t.camera_x,
+      y: (y - t.post_y) / t.scale + t.camera_y,
+    };
+  }
+
   /* INTERACTION */
 
   on_mouse_move(dx: number, dy: number) {
     if (this.overlay) {
-      this.overlay.on_mouse_move();
+      this.overlay.grid.on_mouse_move();
     } else {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
@@ -202,20 +163,34 @@ class Game {
 
   on_mouse_down() {
     if (this.overlay) {
-      this.overlay.on_mouse_down();
+      const was_click_registered = this.overlay.grid.on_mouse_down();
+      if (!was_click_registered) this.overlay = undefined;
     } else {
       // No overlay grid means we should be interacting with the puzzle world
+      let { x, y } = this.inv_transform_point(mouse_x, mouse_y);
+      for (let i = 0; i < this.puzzles.length; i++) {
+        let p = puzzles[i];
+        if (x < p.pos.x - p.num_solutions / 2 || x > p.pos.x + p.num_solutions / 2) continue;
+        if (y < p.pos.y - 1 / 2 || y > p.pos.y + 1 / 2) continue;
+        // Mouse is within this puzzle's rect
+        this.overlay = {
+          grid: new Grid(p),
+          puzzle_idx: i,
+        };
+      }
     }
   }
 
   on_mouse_up() {
     if (this.overlay) {
-      this.overlay.on_mouse_up();
+      this.overlay.grid.on_mouse_up();
     } else {
       // No overlay grid means we should be interacting with the puzzle world
     }
   }
 }
+
+type Overlay = { grid: Grid, puzzle_idx: number };
 
 /* ===== BOILERPLATE CODE FOR BROWSER INTERFACING ===== */
 
@@ -367,57 +342,6 @@ function update_mouse(evt: MouseEvent): { dx: number, dy: number } {
   mouse_y = new_mouse_y;
   mouse_button = evt.buttons != 0;
   return { dx, dy };
-}
-
-/* UTILS */
-
-function sort_by_key<T>(arr: T[], key: (v: T) => any[]) {
-  arr = [...arr];
-  arr.sort((a, b) => {
-    let vs_a = key(a);
-    let vs_b = key(b);
-    for (let i = 0; i < Math.min(vs_a.length, vs_b.length); i++) {
-      if (vs_a[i] < vs_b[i]) return -1;
-      if (vs_a[i] > vs_b[i]) return 1;
-      // If they're equal, check the next item in the arrays (i.e. we're doing
-      // lexicographic/dictionary sort)
-    }
-    return 0; // If no elements are different, the arrays must be equal
-  });
-  return arr;
-}
-
-// Removes any items from `arr` which fail `pred`
-function retain<T>(arr: T[], pred: (v: T) => boolean) {
-  let idxs_to_remove = [];
-  for (let i = 0; i < arr.length; i++) {
-    if (!pred(arr[i])) {
-      idxs_to_remove.push(i);
-    }
-  }
-  idxs_to_remove.reverse();
-  for (const i of idxs_to_remove) {
-    arr.splice(i, 1);
-  }
-}
-
-function get_uneased_anim_factor(start_time: number, anim_time: number): number {
-  return (Date.now() - start_time) / 1000 / anim_time;
-}
-
-function get_anim_factor(start_time: number, anim_time: number): number {
-  let anim_factor = get_uneased_anim_factor(start_time, anim_time);
-  anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
-  anim_factor = ease_in_out(anim_factor); // Easing
-  return anim_factor;
-}
-
-function ease_in_out(x: number): number {
-  return (3 - 2 * x) * x * x;
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a * (1 - t) + b * t;
 }
 
 /* START GAMELOOP */
