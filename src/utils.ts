@@ -95,17 +95,27 @@ class Tween<T> {
   }
 
   animate_to(target: T, lerp_fn: (a: T, b: T, t: number) => T) {
-    this.source = this.current(lerp_fn);
+    this.source = this.current_state(lerp_fn);
     this.target = target;
     this._anim_start = Date.now();
   }
 
-  current<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
+  animate_to_with_random_delay(target: T, lerp_fn: (a: T, b: T, t: number) => T, delay_factor: number) {
+    this.source = this.current_state(lerp_fn);
+    this.target = target;
+    this._anim_start = Date.now() + Math.random() * 1000 * this._duration * delay_factor;
+  }
+
+  current_state<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
     return lerp_fn(this.source, this.target, this.eased_anim_factor());
   }
 
   is_complete(): boolean {
     return this.uneased_anim_factor() >= 1;
+  }
+
+  is_animating(): boolean {
+    return 0 < this.uneased_anim_factor() && this.uneased_anim_factor() < 1;
   }
 
   uneased_anim_factor(): number {

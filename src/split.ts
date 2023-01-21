@@ -41,7 +41,7 @@ class Game {
     // Remove any grids which have fully faded
     retain(
       this.fading_grids,
-      (grid) => !(is_faded(grid.animation.target) && grid.animation.is_complete())
+      (grid) => !(is_faded(grid.transform_tween.target) && grid.transform_tween.is_complete())
     );
 
     // Trigger adding the solution on the overlay grid to puzzle scene
@@ -108,9 +108,22 @@ class Game {
       ctx.fillText(`#${i + 1}`, min.x - 10, min.y + 0.5 * scale);
     }
     // Grids
-    for (const grid of this.fading_grids) grid.draw();
+    let grids = [];
     for (const p of this.puzzles) {
       for (const g of p.solved_grids) {
+        grids.push(g);
+      }
+    }
+
+    for (const grid of this.fading_grids) grid.draw();
+    for (const g of grids) {
+      if (!g.transform_tween.is_animating()) {
+        g.draw();
+      }
+    }
+    // Draw animating grids above normal grids
+    for (const g of grids) {
+      if (g.transform_tween.is_animating()) {
         g.draw();
       }
     }

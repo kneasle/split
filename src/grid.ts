@@ -14,7 +14,7 @@ class Grid {
   line: number[];
   is_drawing_line: boolean;
   solution: any; // TODO: Explicit type
-  animation: Tween<TransformState>; // TODO: Explicit type
+  transform_tween: Tween<TransformState>;
 
   pips: Pip[];
   pip_idxs_per_cell: number[][];
@@ -30,7 +30,7 @@ class Grid {
     this.solution = undefined;
 
     // State for animating the transform
-    this.animation = new Tween(GRID_STATE_ENTER, GRID_STATE_MAIN, GRID_ENTRY_ANIMATION_TIME);
+    this.transform_tween = new Tween(GRID_STATE_ENTER, GRID_STATE_MAIN, GRID_ENTRY_ANIMATION_TIME);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -270,7 +270,7 @@ class Grid {
   }
 
   current_transform() {
-    return this.animation.current(
+    return this.transform_tween.current_state(
       (a, b, t) => Transform.lerp(this.transform(a), this.transform(b), t)
     );
   }
@@ -322,7 +322,7 @@ class Grid {
   }
 
   animate_to(state: TransformState) {
-    this.animation.animate_to(state, (_a, b, _t) => b);
+    this.transform_tween.animate_to(state, (_a, b, _t) => b);
   }
 
   is_ready_to_be_stashed() {
@@ -344,15 +344,10 @@ class Grid {
   }
 }
 
-type PipState = { x: number, y: number, color: Color };
-
 class Pip {
   source_cell_idx: number;
   unsolved_state: PipState;
-
-  anim_source: PipState;
-  anim_target: PipState;
-  anim_start_time: number;
+  state_tween: Tween<PipState>;
 
   constructor(source_cell_idx: number, unsolved_state: PipState) {
     // Location of the pip in the unsolved puzzle
@@ -360,26 +355,30 @@ class Pip {
     this.unsolved_state = unsolved_state;
 
     // Start the pips animating from unsolved to unsolved
-    this.anim_source = unsolved_state;
-    this.anim_target = unsolved_state;
-    this.anim_start_time = Date.now();
+    this.state_tween = new Tween(unsolved_state, unsolved_state, SOLVE_ANIMATION_TIME);
   }
 
   animate_to(target_state: PipState) {
-    this.anim_source = this.current_state();
-    this.anim_target = target_state;
-    this.anim_start_time = Date.now() +
-      Math.random() * 1000 * PIP_ANIMATION_SPREAD * SOLVE_ANIMATION_TIME;
+    this.state_tween.animate_to_with_random_delay(
+      target_state,
+      lerp_pip_state,
+      PIP_ANIMATION_SPREAD
+    );
   }
 
-  current_state() {
-    const anim_factor = eased_anim_factor(this.anim_start_time, SOLVE_ANIMATION_TIME);
-    return {
-      x: lerp(this.anim_source.x, this.anim_target.x, anim_factor),
-      y: lerp(this.anim_source.y, this.anim_target.y, anim_factor),
-      color: Color.lerp(this.anim_source.color, this.anim_target.color, anim_factor),
-    };
+  current_state(): PipState {
+    return this.state_tween.current_state(lerp_pip_state);
   }
+}
+
+type PipState = { x: number, y: number, color: Color };
+
+function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
+  return {
+    x: lerp(a.x, b.x, t),
+    y: lerp(a.y, b.y, t),
+    color: Color.lerp(a.color, b.color, t),
+  };
 }
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
