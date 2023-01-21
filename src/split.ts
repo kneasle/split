@@ -290,9 +290,9 @@ let _puzzles = [
   { num_solutions: 1, pattern: "111|181|111" },
   { num_solutions: 3, pattern: "1 41|4   |   4|14 1" },
   { num_solutions: 4, pattern: "2  2| 11 | 11 |2  2" },
-  { num_solutions: 3, pattern: "4224|2112|2112|4224" },
+  { num_solutions: 4, pattern: "4224|2112|2112|4224" },
   { num_solutions: 1, pattern: "2 1 2|     |1 2 1|    |2 1 2" },
-  { num_solutions: 2, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
+  { num_solutions: 3, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
 ];
 let idx = 0;
 let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) => new Puzzle(pattern, 0, idx++, num_solutions));
