@@ -3,7 +3,7 @@ const GRID_STATE_MAIN = "main";
 
 /// An instance of a `Puzzle` on the screen
 class Grid {
-  constructor(puzzle) {
+  constructor(puzzle: Puzzle) {
     this.puzzle = puzzle;
     this.line = []; // List of vertex indices which make up the line being drawn
     this.is_drawing_line = false;

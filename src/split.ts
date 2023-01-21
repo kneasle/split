@@ -371,6 +371,30 @@ function lerp(a, b, t) {
   return a * (1 - t) + b * t;
 }
 
+class Color {
+  constructor(hex: string) {
+    // Parse color as a hex string
+    let r, g, b, multiplier;
+    if (color.length === 4) {
+      r = color[1];
+      g = color[2];
+      b = color[3];
+      multiplier = 0x11;
+    } else if (color.length === 7) {
+      r = color.slice(1, 3);
+      g = color.slice(3, 5);
+      b = color.slice(5, 7);
+      multiplier = 1;
+    } else {
+      throw Error("Colour passed non-hex string")
+    }
+
+    this.r = parseInt(r, 16) * multiplier;
+    this.g = parseInt(g, 16) * multiplier;
+    this.b = parseInt(b, 16) * multiplier;
+  }
+}
+
 function lerp_color(c1, c2, t) {
   let { r: r1, g: g1, b: b1 } = parse_color(c1);
   let { r: r2, g: g2, b: b2 } = parse_color(c2);
@@ -404,7 +428,7 @@ function parse_color(color) {
   };
 }
 
-function to_canvas_color(color) {
+function to_canvas_color(color: Color) {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
 }
 
