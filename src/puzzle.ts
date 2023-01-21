@@ -1,8 +1,26 @@
 /* Abstract representations of puzzles */
 
+type Cell = {
+  verts: number[],
+  centre: { x: number, y: number },
+  pips: number,
+  neighbours: { edge_idx: number, cell_idx: number }[],
+};
+
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
-  constructor(pattern, x, y, num_solutions) {
+  x: number;
+  y: number;
+  num_solutions: number;
+  solved_grids: Grid[];
+  width: number;
+  height: number;
+
+  verts: { x: number, y: number }[];
+  edges: { v1: number, v2: number }[];
+  cells: Cell[];
+
+  constructor(pattern: string, x: number, y: number, num_solutions: number) {
     /* Values used by the rest of the game */
     this.x = x;
     this.y = y;
@@ -21,7 +39,7 @@ class Puzzle {
         this.verts.push({ x, y });
       }
     }
-    let vert_idx = (x, y) => y * (this.width + 1) + x;
+    let vert_idx = (x: number, y: number) => y * (this.width + 1) + x;
 
     this.edges = [];
     // Vertical edges
@@ -59,11 +77,9 @@ class Puzzle {
           let new_y = y + dy;
           // Neighbour is only valid if the opposite cell is actually in the grid
           if (new_x < 0 || new_x >= this.width || new_y < 0 || new_y >= this.height) continue;
+          // Add neighbour
           let cell_idx = new_y * this.width + new_x;
-          // Determine the edge which lies between this cell and its neighbour
-          const edge_idx = this.connecting_edge(v1, v2);
-          console.assert(edge_idx !== undefined);
-          // Add edge
+          const edge_idx = this.connecting_edge(v1, v2)!;
           neighbours.push({ edge_idx, cell_idx });
         }
 
@@ -77,13 +93,13 @@ class Puzzle {
     }
   }
 
-  get_solution(line) {
+  get_solution(line: number[]) {
     console.assert(line[0] === line[line.length - 1]); // Check that line forms a loop
     // Determine which edges are in the line
     let is_edge_in_line = [];
     for (const _ of this.edges) is_edge_in_line.push(false);
     for (let i = 0; i < line.length - 1; i++) {
-      const edge_idx = this.connecting_edge(line[i], line[i + 1]);
+      const edge_idx = this.connecting_edge(line[i], line[i + 1])!;
       is_edge_in_line[edge_idx] = true;
     }
 
@@ -108,7 +124,7 @@ class Puzzle {
       let pips_in_region = 0;
       let frontier = [region_start_cell];
       while (frontier.length > 0) {
-        let next_cell_idx = frontier.pop();
+        let next_cell_idx = frontier.pop()!;
         let next_cell = this.cells[next_cell_idx];
         if (is_cell_in_region[next_cell_idx]) continue; // Cell has already been explored
         // Add cell to this region
@@ -135,7 +151,7 @@ class Puzzle {
   }
 
   // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle
-  nearest_edge(p_x, p_y) {
+  nearest_edge(p_x: number, p_y: number) {
     let nearest = undefined;
     for (let e = 0; e < this.edges.length; e++) {
       let { v1, v2 } = this.edges[e];
@@ -167,12 +183,12 @@ class Puzzle {
     return nearest;
   }
 
-  connecting_edge(vert_1, vert_2) {
+  connecting_edge(vert_1: number, vert_2: number): number | null {
     for (let i = 0; i < this.edges.length; i++) {
       const { v1, v2 } = this.edges[i];
       if (vert_1 === v1 && vert_2 === v2) return i;
       if (vert_1 === v2 && vert_2 === v1) return i;
     }
-    return undefined;
+    return null;
   }
 }

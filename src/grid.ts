@@ -3,6 +3,15 @@ const GRID_STATE_MAIN = "main";
 
 /// An instance of a `Puzzle` on the screen
 class Grid {
+  puzzle: Puzzle;
+  line: number[];
+  is_drawing_line: boolean;
+  solution: any; // TODO: Explicit type
+  animation: any; // TODO: Explici type
+
+  pips: Pip[];
+  pip_idxs_per_cell: number[][];
+
   constructor(puzzle: Puzzle) {
     this.puzzle = puzzle;
     this.line = []; // List of vertex indices which make up the line being drawn
@@ -27,17 +36,16 @@ class Grid {
       const cell = this.puzzle.cells[c];
       const pip_idxs = [];
       for (let p = 0; p < cell.pips; p++) {
-        const unsolved_state = this.pip_coords(c, p);
-        unsolved_state.color = PIP_COLOR;
         pip_idxs.push(this.pips.length);
-        this.pips.push(new Pip(c, unsolved_state));
+        const { x, y } = this.pip_coords(c, p, undefined);
+        this.pips.push(new Pip(c, { x, y, color: PIP_COLOR }));
       }
       this.pip_idxs_per_cell.push(pip_idxs);
     }
   }
 
   on_mouse_down() {
-    const interaction = this.interaction();
+    const interaction = this.interaction()!;
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
       this.line = [interaction.vert_idx];
@@ -64,7 +72,7 @@ class Grid {
   on_mouse_move() {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
-    const interaction = this.interaction();
+    const interaction = this.interaction()!;
 
     let new_vert = interaction.vert_idx;
     let last_vert = this.line[this.line.length - 1];
@@ -120,7 +128,7 @@ class Grid {
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned
       let _this = this;
-      const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx) => {
+      const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell = _this.puzzle.cells[cell_idx];
         let dx = cell.centre.x - avg_x;
         let dy = cell.centre.y - avg_y;
@@ -129,7 +137,7 @@ class Grid {
       });
 
       // Group pips into cells
-      let pip_idxs_in_region = region.cells.flatMap((idx) => this.pip_idxs_per_cell[idx]);
+      let pip_idxs_in_region = region.cells.flatMap((idx: number) => this.pip_idxs_per_cell[idx]);
       for (const cell_idx of cells_to_add_pips_to) {
         // Reserve up to 10 pips to go in this cell
         const num_pips = Math.min(pip_idxs_in_region.length, 10);
@@ -156,12 +164,11 @@ class Grid {
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
 
     // Handle solution animation (mainly colours)
-    const line_color = to_canvas_color(
-      lerp_color(LINE_COLOR, this.solution_color(), this.solution_anim_factor()),
-    );
+    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
+      .to_canvas_color();
 
     // Cell
-    ctx.fillStyle = CELL_COLOR;
+    ctx.fillStyle = CELL_COLOR.to_canvas_color();
     for (const c of this.puzzle.cells) {
       ctx.beginPath();
       for (const v of c.verts) {
@@ -172,7 +179,7 @@ class Grid {
 
     // Edges
     ctx.lineWidth = EDGE_WIDTH;
-    ctx.strokeStyle = GRID_COLOR;
+    ctx.strokeStyle = GRID_COLOR.to_canvas_color();
     for (const e of this.puzzle.edges) {
       let v1 = this.puzzle.verts[e.v1];
       let v2 = this.puzzle.verts[e.v2];
@@ -187,8 +194,9 @@ class Grid {
       // Decide if the vertex should be line coloured
       let should_be_line_colored;
       if (this.line.length <= 1) {
-        should_be_line_colored = v_idx === interaction.vert_idx &&
-          interaction.vert_distance <= VERTEX_INTERACTION_RADIUS;
+        let _interaction = interaction!;
+        should_be_line_colored = v_idx === _interaction.vert_idx &&
+          _interaction.vert_distance <= VERTEX_INTERACTION_RADIUS;
       } else {
         let start_vert = this.line[0];
         let end_vert = this.line[this.line.length - 1];
@@ -201,7 +209,7 @@ class Grid {
       }
 
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = should_be_line_colored ? line_color : GRID_COLOR;
+      ctx.fillStyle = should_be_line_colored ? line_color : GRID_COLOR.to_canvas_color();
       ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
 
@@ -225,7 +233,7 @@ class Grid {
     // Pips
     for (const pip of this.pips) {
       const { x, y, color } = pip.current_state();
-      ctx.fillStyle = to_canvas_color(color);
+      ctx.fillStyle = color.to_canvas_color();
       ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
     }
 
@@ -263,19 +271,13 @@ class Grid {
     let target_transform = this.transform(this.animation.target_state);
     let anim_factor = get_anim_factor(this.animation.start_time, GRID_ENTRY_ANIMATION_TIME);
     // Lerp every field of the transform
-    let transform = {};
-    for (const field_name of ["x", "y", "scale"]) {
-      transform[field_name] = lerp(
-        start_transform[field_name],
-        target_transform[field_name],
-        anim_factor,
-      );
-    }
-    return transform;
+    return {
+      x: lerp(start_transform.x, target_transform.x, anim_factor),
+      y: lerp(start_transform.y, target_transform.y, anim_factor),
+      scale: lerp(start_transform.scale, target_transform.scale, anim_factor),
+    };
   }
 
-  // Arrange the grids as best we can into the window, choosing the splitting pattern which
-  // maximises the size of the grids
   transform(state) {
     // Get the rectangle in which the puzzle has to fit
     let rect;
@@ -292,7 +294,7 @@ class Grid {
       rect = {
         x: canvas.width / 2 +
           (this.puzzle.x - camera_x + state.grid_idx - this.puzzle.num_solutions / 2) *
-            PUZZLE_WORLD_SCALE,
+          PUZZLE_WORLD_SCALE,
         y: /* canvas.height / 2 + */ (this.puzzle.y - camera_y) * PUZZLE_WORLD_SCALE,
         w: PUZZLE_WORLD_SCALE,
         h: PUZZLE_WORLD_SCALE,
@@ -311,7 +313,7 @@ class Grid {
     };
   }
 
-  pip_coords(cell_idx, pip_idx, num_pips) {
+  pip_coords(cell_idx: number, pip_idx: number, num_pips: number | undefined) {
     const cell = this.puzzle.cells[cell_idx];
     const { x, y } = dice_pattern(num_pips || cell.pips)[pip_idx];
     return {
@@ -345,8 +347,17 @@ class Grid {
   }
 }
 
+type PipState = { x: number, y: number, color: Color };
+
 class Pip {
-  constructor(source_cell_idx, unsolved_state) {
+  source_cell_idx: number;
+  unsolved_state: PipState;
+
+  anim_source: PipState;
+  anim_target: PipState;
+  anim_start_time: number;
+
+  constructor(source_cell_idx: number, unsolved_state: PipState) {
     // Location of the pip in the unsolved puzzle
     this.source_cell_idx = source_cell_idx;
     this.unsolved_state = unsolved_state;
@@ -357,7 +368,7 @@ class Pip {
     this.anim_start_time = Date.now();
   }
 
-  animate_to(target_state) {
+  animate_to(target_state: PipState) {
     this.anim_source = this.current_state();
     this.anim_target = target_state;
     this.anim_start_time = Date.now() +
@@ -369,13 +380,13 @@ class Pip {
     return {
       x: lerp(this.anim_source.x, this.anim_target.x, anim_factor),
       y: lerp(this.anim_source.y, this.anim_target.y, anim_factor),
-      color: lerp_color(this.anim_source.color, this.anim_target.color, anim_factor),
+      color: Color.lerp(this.anim_source.color, this.anim_target.color, anim_factor),
     };
   }
 }
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
-function dice_pattern(num_pips) {
+function dice_pattern(num_pips: number): { x: number, y: number }[] {
   const pip_pair_patterns = [
     [1, -1], // 2
     [1, 1], // 4
