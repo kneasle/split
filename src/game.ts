@@ -230,10 +230,7 @@ type Overlay = {
   tween: Tween<number>;
 };
 
-/* ===== BOILERPLATE CODE FOR BROWSER INTERFACING ===== */
-
-const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d")!;
+/* ===== INIT CODE ===== */
 
 // Create puzzle patterns
 let _puzzles = [
@@ -336,8 +333,10 @@ let idx = 0;
 let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) =>
   new Puzzle(pattern, 0, idx++, num_solutions)
 );
-console.log(`${puzzles.length} puzzles.`);
 const game = new Game(puzzles);
+
+const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+const ctx = canvas.getContext("2d")!;
 
 window.addEventListener("resize", on_resize);
 function on_resize() {
