@@ -30,7 +30,12 @@ class Grid {
     this.solution = undefined;
 
     // State for animating the transform
-    this.transform_tween = new Tween(GRID_STATE_ENTER, GRID_STATE_MAIN, GRID_ENTRY_ANIMATION_TIME);
+    this.transform_tween = new Tween<TransformState>(
+      GRID_STATE_ENTER,
+      GRID_ENTRY_ANIMATION_TIME,
+      (_a, b, _t) => b,
+    );
+    this.transform_tween.animate_to(GRID_STATE_MAIN);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -66,7 +71,7 @@ class Grid {
     if (this.solution !== undefined) {
       // Animate all pips back to their start locations
       for (const pip of this.pips) {
-        pip.animate_to(pip.unsolved_state);
+        pip.state_tween.animate_to(pip.unsolved_state);
       }
     }
     this.solution = undefined;
@@ -150,7 +155,7 @@ class Grid {
         // TODO: Don't move pips which exist in both the solved and unsolved puzzles
         for (let p = 0; p < num_pips; p++) {
           const { x, y } = this.pip_coords(cell_idx, p, num_pips);
-          this.pips[pip_idxs[p]].animate_to({ x, y, color: this.solution_color() });
+          this.pips[pip_idxs[p]].state_tween.animate_to({ x, y, color: this.solution_color() });
         }
       }
     }
@@ -235,7 +240,7 @@ class Grid {
 
     // Pips
     for (const pip of this.pips) {
-      const { x, y, color } = pip.current_state();
+      const { x, y, color } = pip.state_tween.get();
       ctx.fillStyle = color.to_canvas_color();
       ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
     }
@@ -269,8 +274,8 @@ class Grid {
     return interaction;
   }
 
-  current_transform(puzzle_world_transform: Transform) {
-    return this.transform_tween.current_state(
+  current_transform(puzzle_world_transform: Transform): Transform {
+    return this.transform_tween.get_with_lerp_fn(
       (a, b, t) =>
         Transform.lerp(
           this.transform(a, puzzle_world_transform),
@@ -322,10 +327,6 @@ class Grid {
     };
   }
 
-  animate_to(state: TransformState) {
-    this.transform_tween.animate_to(state, (_a, b, _t) => b);
-  }
-
   is_ready_to_be_stashed() {
     return this.is_correctly_solved() &&
       // TODO: Add extra factor for other animations
@@ -356,19 +357,8 @@ class Pip {
     this.unsolved_state = unsolved_state;
 
     // Start the pips animating from unsolved to unsolved
-    this.state_tween = new Tween(unsolved_state, unsolved_state, SOLVE_ANIMATION_TIME);
-  }
-
-  animate_to(target_state: PipState) {
-    this.state_tween.animate_to_with_random_delay(
-      target_state,
-      lerp_pip_state,
-      PIP_ANIMATION_SPREAD,
-    );
-  }
-
-  current_state(): PipState {
-    return this.state_tween.current_state(lerp_pip_state);
+    this.state_tween = new Tween(unsolved_state, SOLVE_ANIMATION_TIME, lerp_pip_state);
+    this.state_tween.random_delay_factor = PIP_ANIMATION_SPREAD;
   }
 }
 

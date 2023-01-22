@@ -65,7 +65,7 @@ class Game {
       // Add the new grid, replacing an existing grid if that grid has the same count
       let i = idx_of_solved_grid;
       if (solved_grids[i] && solved_grids[i].solution.pip_group_size === pip_group_size) {
-        solved_grids[i].animate_to({ puzzle_idx, grid_idx: i, faded: true });
+        solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: true });
         this.fading_grids.push(solved_grids[i]);
         solved_grids[i] = grid;
       } else {
@@ -73,7 +73,7 @@ class Game {
       }
       // Animate all the puzzle's grids to their new positions
       for (let i = 0; i < solved_grids.length; i++) {
-        solved_grids[i].animate_to({ puzzle_idx, grid_idx: i, faded: false });
+        solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: false });
       }
       // Create a new main grid to replace the old one
       this.overlay.grid = new Grid(this.puzzles[puzzle_idx]);

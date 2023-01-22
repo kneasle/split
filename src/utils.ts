@@ -86,31 +86,30 @@ class Tween<T> {
   target: T;
   _anim_start: number;
   _duration: number;
+  _lerp_fn: (a: T, b: T, t: number) => T;
+  random_delay_factor: number;
 
-  constructor(source: T, target: T, duration: number) {
-    this.source = source;
-    this.target = target;
+  constructor(state: T, duration: number, lerp_fn: (a: T, b: T, t: number) => T) {
+    this.source = state;
+    this.target = state;
     this._duration = duration;
     this._anim_start = Date.now();
+    this._lerp_fn = lerp_fn;
+    this.random_delay_factor = 0;
   }
 
-  animate_to(target: T, lerp_fn: (a: T, b: T, t: number) => T) {
-    this.source = this.current_state(lerp_fn);
+  animate_to(target: T) {
+    this.source = this.get();
     this.target = target;
-    this._anim_start = Date.now();
+    this._anim_start = Date.now() +
+      Math.random() * 1000 * this._duration * this.random_delay_factor;
   }
 
-  animate_to_with_random_delay(
-    target: T,
-    lerp_fn: (a: T, b: T, t: number) => T,
-    delay_factor: number,
-  ) {
-    this.source = this.current_state(lerp_fn);
-    this.target = target;
-    this._anim_start = Date.now() + Math.random() * 1000 * this._duration * delay_factor;
+  get(): T {
+    return this.get_with_lerp_fn(this._lerp_fn);
   }
 
-  current_state<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
+  get_with_lerp_fn<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
     return lerp_fn(this.source, this.target, this.eased_anim_factor());
   }
 
@@ -165,6 +164,10 @@ class Transform {
       this.dy + other.dy / this.scale,
       this.scale * other.scale,
     );
+  }
+
+  then_translate(dx: number, dy: number): Transform {
+    return this.then(new Transform(dx, dy, 1));
   }
 
   inv(): Transform {
