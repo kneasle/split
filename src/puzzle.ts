@@ -142,7 +142,7 @@ class Puzzle {
   }
 
   // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle
-  nearest_edge(p_x: number, p_y: number): NearestEdge | undefined {
+  nearest_edge(p_x: number, p_y: number): NearestEdge {
     let nearest = undefined;
     for (let edge_idx = 0; edge_idx < this.edges.length; edge_idx++) {
       let { v1, v2 } = this.edges[edge_idx];
@@ -171,7 +171,7 @@ class Puzzle {
         };
       }
     }
-    return nearest;
+    return nearest!;
   }
 
   connecting_edge(vert_1: number, vert_2: number): number | undefined {

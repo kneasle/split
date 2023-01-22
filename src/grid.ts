@@ -1,18 +1,24 @@
 /// An instance of a `Puzzle` on the screen
 class Grid {
   puzzle: Puzzle;
-  line: number[];
-  is_drawing_line: boolean;
-  solution: Solution | undefined;
-  transform_tween: Tween<TransformState>;
-
   pips: Pip[];
   pip_idxs_per_cell: number[][];
 
+  line_path: number[];
+  is_drawing_line: boolean;
+  ideal_line: LerpedLine;
+  displayed_line: LerpedLine;
+  solution: Solution | undefined;
+
+  transform_tween: Tween<TransformState>;
+
   constructor(puzzle: Puzzle, state: TransformState) {
     this.puzzle = puzzle;
-    this.line = []; // List of vertex indices which make up the line being drawn
+
+    this.line_path = []; // List of vertex indices which make up the line being drawn
     this.is_drawing_line = false;
+    this.ideal_line = { path: [], disp_length: 0 };
+    this.displayed_line = { path: [], disp_length: 0 };
     // For every `Grid`, `solution` is always in one of three states:
     // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
     // 2) `this.solution.is_valid === true`: the solution is valid
@@ -34,7 +40,7 @@ class Grid {
       const pip_idxs = [];
       for (let p = 0; p < cell.pips; p++) {
         pip_idxs.push(this.pips.length);
-        const { x, y } = this.pip_coords(c, p, undefined);
+        const { x, y } = this.pip_coords(c, p);
         this.pips.push(new Pip(c, { x, y, color: PIP_COLOR }));
       }
       this.pip_idxs_per_cell.push(pip_idxs);
@@ -45,18 +51,18 @@ class Grid {
     const interaction = this.interaction()!;
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
-      this.line = [interaction.vert_idx];
+      this.line_path = [interaction.vert_idx];
       this.is_drawing_line = true;
     } else if (
       interaction.local_x >= 0 && interaction.local_x <= this.puzzle.width &&
       interaction.local_y >= 0 && interaction.local_y <= this.puzzle.height
     ) {
-      this.line = []; // Mouse is on the grid but can't start a line
+      this.line_path = []; // Mouse is on the grid but can't start a line
     } else {
       return false; // Mouse is fully off the grid, so don't register the click
     }
 
-    // Remove current solution
+    // If the grid was clicked, remove current solution
     if (this.solution !== undefined) {
       // Animate all pips back to their start locations
       for (const pip of this.pips) {
@@ -64,6 +70,11 @@ class Grid {
       }
     }
     this.solution = undefined;
+
+    // Also reset the lines too
+    this.ideal_line = { path: this.line_path, disp_length: 0 };
+    // TODO: Maybe smoothly lerp between the old and new lines
+    this.displayed_line = { path: this.line_path, disp_length: 0 };
     return true;
   }
 
@@ -73,10 +84,10 @@ class Grid {
     const interaction = this.interaction()!;
 
     let new_vert = interaction.vert_idx;
-    let last_vert = this.line[this.line.length - 1];
-    let penultimate_vert = this.line[this.line.length - 2];
+    let last_vert = this.line_path[this.line_path.length - 1];
+    let penultimate_vert = this.line_path[this.line_path.length - 2];
 
-    if (this.line.length == 0) return; // No line is being drawn
+    if (this.line_path.length == 0) return; // No line is being drawn
     if (!mouse_button) return; // User is not dragging
     if (new_vert === undefined) return; // Mouse not close enough to a vert
     if (new_vert === last_vert) return; // Still on last vert
@@ -85,15 +96,15 @@ class Grid {
     }
 
     // Don't allow the user to add a line segment twice
-    for (let i = 0; i < this.line.length - 2; i++) {
-      if (this.line[i] === last_vert && this.line[i + 1] === new_vert) return;
-      if (this.line[i] === new_vert && this.line[i + 1] === last_vert) return;
+    for (let i = 0; i < this.line_path.length - 2; i++) {
+      if (this.line_path[i] === last_vert && this.line_path[i + 1] === new_vert) return;
+      if (this.line_path[i] === new_vert && this.line_path[i + 1] === last_vert) return;
     }
 
     if (new_vert === penultimate_vert) {
-      this.line.pop(); // Moved backward, 'unwind' the line
+      this.line_path.pop(); // Moved backward, 'unwind' the line
     } else {
-      this.line.push(new_vert); // Moved forward, 'extend' the line
+      this.line_path.push(new_vert); // Moved forward, 'extend' the line
     }
   }
 
@@ -103,10 +114,12 @@ class Grid {
     this.is_drawing_line = false;
 
     // Check the user's solution
-    const is_line_loop = this.line.length > 1 && this.line[0] === this.line[this.line.length - 1];
+    const is_line_loop = this.line_path.length > 1 &&
+      this.line_path[0] === this.line_path[this.line_path.length - 1];
     if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
-    this.solution = this.puzzle.get_solution(this.line);
-    if (typeof this.solution === "undefined") throw Error();
+    this.solution = this.puzzle.get_solution(this.line_path);
+    // Once the puzzle is solved, display an exactly full line
+    this.ideal_line = { path: [...this.line_path], disp_length: this.line_path.length };
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
@@ -123,7 +136,8 @@ class Grid {
       let avg_y = total_y / region.cells.length;
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
       // add the pips
-      // TODO: Fancier way to determine where the pips are assigned
+      // TODO: Fancier way to determine where the pips are assigned:
+      //        - For symmetric regions, force pips onto the line of symmetry
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell = _this.puzzle.cells[cell_idx];
@@ -152,6 +166,8 @@ class Grid {
 
   draw(): void {
     const interaction = this.interaction();
+    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
+      .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
     let transform = this.current_transform();
@@ -159,10 +175,6 @@ class Grid {
     ctx.translate(transform.dx, transform.dy);
     ctx.scale(transform.scale, transform.scale);
     ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
-
-    // Handle solution animation (mainly colours)
-    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
-      .to_canvas_color();
 
     // Cell
     ctx.fillStyle = CELL_COLOR.to_canvas_color();
@@ -190,19 +202,14 @@ class Grid {
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
       // Decide if the vertex should be line coloured
       let should_be_line_colored;
-      if (this.line.length <= 1) {
+      if (this.line_path.length <= 1) {
         let _interaction = interaction!;
         should_be_line_colored = v_idx === _interaction.vert_idx &&
           _interaction.vert_distance <= VERTEX_INTERACTION_RADIUS;
       } else {
-        let start_vert = this.line[0];
-        let end_vert = this.line[this.line.length - 1];
-        if (start_vert === end_vert) {
-          should_be_line_colored = false;
-        } else {
-          // Make the start and end of the line
-          should_be_line_colored = v_idx === start_vert || v_idx === end_vert;
-        }
+        let start_vert = this.line_path[0];
+        let end_vert = this.line_path[this.line_path.length - 1];
+        should_be_line_colored = v_idx === start_vert && start_vert !== end_vert;
       }
 
       const { x, y } = this.puzzle.verts[v_idx];
@@ -211,18 +218,33 @@ class Grid {
     }
 
     // Line
-    // TODO: Smooth line drawing
+    this.update_line(interaction!); // interactions are always defined when drawing a line
+    let line = this.displayed_line;
+
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = line_color;
     ctx.beginPath();
-    for (const vert_idx of this.line) {
-      let vert = this.puzzle.verts[vert_idx];
+    // Draw all full edges in the displayed line
+    for (let i = 0; i < line.disp_length - 0.9999; i++) {
+      let vert = this.puzzle.verts[line.path[i]];
       ctx.lineTo(vert.x, vert.y);
     }
-    // HACK: For loops, draw the first line segment twice to avoid a sharp corner at the first
-    // vertex
-    if (this.line.length > 1 && this.line[0] === this.line[this.line.length - 1]) {
-      let vert = this.puzzle.verts[this.line[1]];
+    // Interpolate the final, possibly partial segment
+    if (line.path.length >= 2 && line.disp_length < line.path.length) {
+      let vert1 = this.puzzle.verts[line.path[line.path.length - 2]];
+      let vert2 = this.puzzle.verts[line.path[line.path.length - 1]];
+      let lerp_factor = line.disp_length % 1;
+      ctx.lineTo(
+        lerp(vert1.x, vert2.x, lerp_factor),
+        lerp(vert1.y, vert2.y, lerp_factor),
+      );
+    }
+    // For loops, draw the first line segment twice to avoid a sharp corner at the first vertex
+    if (
+      line.disp_length > 1 && line.disp_length > line.path.length - 0.01 &&
+      line.path[0] === line.path[line.path.length - 1]
+    ) {
+      let vert = this.puzzle.verts[line.path[1]];
       ctx.lineTo(vert.x, vert.y);
     }
     ctx.stroke();
@@ -235,6 +257,50 @@ class Grid {
     }
 
     ctx.restore();
+  }
+
+  update_line(interaction: Interaction): void {
+    if (this.is_drawing_line) {
+      // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
+      let edge_data = this.puzzle.nearest_edge(interaction.local_x, interaction.local_y);
+      let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
+      let lerp_factor = edge_data.lambda;
+      // If needed, reverse the edge so that `v1` is equal the last vertex in `this.line_path`
+      let last_vert_in_path = this.line_path[this.line_path.length - 1];
+      if (v1 === last_vert_in_path) {
+        // No swap required
+      } else if (v2 === last_vert_in_path) {
+        [v1, v2] = [v2, v1];
+        lerp_factor = 1 - lerp_factor; // Switch lerp direction too
+      } else {
+        // Closest edge is fully disconnected.  This only happens if the user moves their mouse
+        // extremely fast, and in that case the line bugs out anyway.  So just don't bother updating
+        // the line.
+        return;
+      }
+      console.assert(v1 === last_vert_in_path);
+
+      // Now, build a `LerpedLine` which represents the 'ideal' line - i.e. one which finishes as
+      // close as possible to the user's cursor.  We also make sure the path always finishes with the
+      // edge that the user is drawing over (even if that makes this path contain one more vertex
+      // than `this.line_path`).
+      let ideal_line_path = [...this.line_path];
+      if (this.line_path.length >= 2 && v2 === this.line_path[this.line_path.length - 2]) {
+        // Nothing to do, as the user is already drawing the last edge in the path
+      } else {
+        // User is drawing off the end of the path (i.e. they're less than half way down a new edge),
+        // so add the new vertex so the new final line segment can be lerped.
+        ideal_line_path.push(v2);
+        lerp_factor = 1 - lerp_factor;
+      }
+      this.ideal_line = {
+        path: ideal_line_path,
+        disp_length: ideal_line_path.length - lerp_factor,
+      };
+    }
+
+    // Next, smoothly update the displayed line to make it rapidly get close to the ideal
+    this.displayed_line = this.ideal_line;
   }
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
@@ -302,7 +368,7 @@ class Grid {
     );
   }
 
-  pip_coords(cell_idx: number, pip_idx: number, num_pips: number | undefined): Vec2 {
+  pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
     const cell = this.puzzle.cells[cell_idx];
     const { x, y } = dice_pattern(num_pips || cell.pips)[pip_idx];
     return {
@@ -336,6 +402,11 @@ function is_faded(s: TransformState): boolean {
   if (typeof s === "object") return s.faded;
   else return false;
 }
+
+type LerpedLine = {
+  path: number[];
+  disp_length: number;
+};
 
 type Interaction = {
   local_x: number;

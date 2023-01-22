@@ -239,6 +239,8 @@ let _puzzles = [
   { num_solutions: 1, pattern: "211" },
   { num_solutions: 1, pattern: "123" },
   { num_solutions: 1, pattern: "21|1 " },
+  { num_solutions: 1, pattern: "111" },
+  { num_solutions: 2, pattern: "2112" },
   { num_solutions: 2, pattern: "11|11" },
   { num_solutions: 1, pattern: "11|1 " },
   { num_solutions: 2, pattern: " 1 |1 1| 1 " },
