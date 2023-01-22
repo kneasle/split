@@ -18,6 +18,8 @@ const OVERLAY_ANIMATION_TIME = 0.4; // Seconds
 const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
+const LINE_LERP_SPEED_FACTOR = 6000; // Pixels/second per pixel
+const MIN_LINE_LERP_SPEED = 3000; // Pixels/second
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
 // Display
@@ -87,7 +89,7 @@ class Game {
     }
   }
 
-  draw(): void {
+  draw(time_delta: number): void {
     /* BACKGROUND */
     ctx.fillStyle = BG_COLOR.to_canvas_color();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -130,19 +132,19 @@ class Game {
       }
     }
 
-    for (const grid of this.fading_grids) grid.draw();
+    for (const grid of this.fading_grids) grid.draw(time_delta);
     for (const g of grids) {
       if (!g.transform_tween.is_animating()) {
-        g.draw();
+        g.draw(time_delta);
       }
     }
     // Draw animating grids above normal grids
     for (const g of grids) {
       if (g.transform_tween.is_animating()) {
-        g.draw();
+        g.draw(time_delta);
       }
     }
-    this.overlay.grid.draw();
+    this.overlay.grid.draw(time_delta);
   }
 
   /* TRANSFORMS */
@@ -389,7 +391,7 @@ function frame(): void {
   let time_delta = (Date.now() - last_frame_time) / 1000;
   last_frame_time = Date.now();
   game.update(time_delta);
-  game.draw();
+  game.draw(time_delta);
   window.requestAnimationFrame(frame);
 }
 frame();

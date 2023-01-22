@@ -72,9 +72,9 @@ class Grid {
     this.solution = undefined;
 
     // Also reset the lines too
-    this.ideal_line = { path: this.line_path, disp_length: 0 };
+    this.ideal_line = { path: [...this.line_path], disp_length: 0 };
     // TODO: Maybe smoothly lerp between the old and new lines
-    this.displayed_line = { path: this.line_path, disp_length: 0 };
+    this.displayed_line = { path: [...this.line_path], disp_length: 0 };
     return true;
   }
 
@@ -164,7 +164,7 @@ class Grid {
     }
   }
 
-  draw(): void {
+  draw(time_delta: number): void {
     const interaction = this.interaction();
     const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
       .to_canvas_color();
@@ -218,7 +218,10 @@ class Grid {
     }
 
     // Line
-    this.update_line(interaction!); // interactions are always defined when drawing a line
+    if (this.is_drawing_line) {
+      this.update_ideal_line(interaction!); // interactions are always defined when drawing a line
+    }
+    this.update_display_line(time_delta);
     let line = this.displayed_line;
 
     ctx.lineWidth = EDGE_WIDTH;
@@ -228,14 +231,14 @@ class Grid {
     ctx.lineJoin = "round";
     ctx.beginPath();
     // Draw all full edges in the displayed line
-    for (let i = 0; i < line.disp_length - 0.9999; i++) {
+    for (let i = 0; i < line.disp_length; i++) {
       let vert = this.puzzle.verts[line.path[i]];
       ctx.lineTo(vert.x, vert.y);
     }
     // Interpolate the final, possibly partial segment
     if (line.path.length >= 2 && line.disp_length < line.path.length) {
-      let vert1 = this.puzzle.verts[line.path[line.path.length - 2]];
-      let vert2 = this.puzzle.verts[line.path[line.path.length - 1]];
+      let vert1 = this.puzzle.verts[line.path[Math.floor(line.disp_length)]];
+      let vert2 = this.puzzle.verts[line.path[Math.ceil(line.disp_length)]];
       let lerp_factor = line.disp_length % 1;
       ctx.lineTo(
         lerp(vert1.x, vert2.x, lerp_factor),
@@ -262,48 +265,87 @@ class Grid {
     ctx.restore();
   }
 
-  update_line(interaction: Interaction): void {
-    if (this.is_drawing_line) {
-      // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
-      let edge_data = this.puzzle.nearest_edge(interaction.local_x, interaction.local_y);
-      let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
-      let lerp_factor = edge_data.lambda;
-      // If needed, reverse the edge so that `v1` is equal the last vertex in `this.line_path`
-      let last_vert_in_path = this.line_path[this.line_path.length - 1];
-      if (v1 === last_vert_in_path) {
-        // No swap required
-      } else if (v2 === last_vert_in_path) {
-        [v1, v2] = [v2, v1];
-        lerp_factor = 1 - lerp_factor; // Switch lerp direction too
-      } else {
-        // Closest edge is fully disconnected.  This only happens if the user moves their mouse
-        // extremely fast, and in that case the line bugs out anyway.  So just don't bother updating
-        // the line.
-        return;
-      }
-      console.assert(v1 === last_vert_in_path);
-
-      // Now, build a `LerpedLine` which represents the 'ideal' line - i.e. one which finishes as
-      // close as possible to the user's cursor.  We also make sure the path always finishes with the
-      // edge that the user is drawing over (even if that makes this path contain one more vertex
-      // than `this.line_path`).
-      let ideal_line_path = [...this.line_path];
-      if (this.line_path.length >= 2 && v2 === this.line_path[this.line_path.length - 2]) {
-        // Nothing to do, as the user is already drawing the last edge in the path
-      } else {
-        // User is drawing off the end of the path (i.e. they're less than half way down a new edge),
-        // so add the new vertex so the new final line segment can be lerped.
-        ideal_line_path.push(v2);
-        lerp_factor = 1 - lerp_factor;
-      }
-      this.ideal_line = {
-        path: ideal_line_path,
-        disp_length: ideal_line_path.length - lerp_factor,
-      };
+  update_ideal_line(interaction: Interaction) {
+    // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
+    let edge_data = this.puzzle.nearest_edge(interaction.local_x, interaction.local_y);
+    let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
+    let lerp_factor = edge_data.lambda;
+    // If needed, reverse the edge so that `v1` is equal the last vertex in `this.line_path`
+    let last_vert_in_path = this.line_path[this.line_path.length - 1];
+    if (v1 === last_vert_in_path) {
+      // No swap required
+    } else if (v2 === last_vert_in_path) {
+      [v1, v2] = [v2, v1];
+      lerp_factor = 1 - lerp_factor; // Switch lerp direction too
+    } else {
+      // Closest edge is fully disconnected.  This only happens if the user moves their mouse
+      // extremely fast, and in that case the line bugs out anyway.  So just don't bother updating
+      // the line.
+      return;
     }
+    console.assert(v1 === last_vert_in_path);
 
+    // Now, build a `LerpedLine` which represents the 'ideal' line - i.e. one which finishes as
+    // close as possible to the user's cursor.  We also make sure the path always finishes with the
+    // edge that the user is drawing over (even if that makes this path contain one more vertex
+    // than `this.line_path`).
+    let ideal_line_path = [...this.line_path];
+    if (this.line_path.length >= 2 && v2 === this.line_path[this.line_path.length - 2]) {
+      // Nothing to do, as the user is already drawing the last edge in the path
+    } else {
+      // User is drawing off the end of the path (i.e. they're less than half way down a new edge),
+      // so add the new vertex so the new final line segment can be lerped.
+      ideal_line_path.push(v2);
+      lerp_factor = 1 - lerp_factor;
+    }
+    this.ideal_line = {
+      path: ideal_line_path,
+      disp_length: ideal_line_path.length - 1 - lerp_factor,
+    };
+  }
+
+  update_display_line(time_delta: number): void {
     // Next, smoothly update the displayed line to make it rapidly get close to the ideal
-    this.displayed_line = this.ideal_line;
+    let common_prefix_length = 0;
+    while (
+      common_prefix_length < this.ideal_line.path.length &&
+      common_prefix_length < this.displayed_line.path.length &&
+      this.ideal_line.path[common_prefix_length] === this.displayed_line.path[common_prefix_length]
+    ) {
+      common_prefix_length++;
+    }
+    let length_to_animate_to = (common_prefix_length === this.displayed_line.path.length)
+      ? this.ideal_line.disp_length
+      : common_prefix_length - 1;
+    // Update length
+    let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
+      Math.abs(this.ideal_line.disp_length - length_to_animate_to);
+    let speed = Math.max(
+      LINE_LERP_SPEED_FACTOR * distance_to_travel,
+      MIN_LINE_LERP_SPEED,
+    ) / this.current_transform().scale;
+    if (length_to_animate_to < this.displayed_line.disp_length) {
+      this.displayed_line.disp_length = Math.max(
+        length_to_animate_to,
+        this.displayed_line.disp_length - time_delta * speed,
+      );
+    } else {
+      this.displayed_line.disp_length = Math.min(
+        length_to_animate_to,
+        this.displayed_line.disp_length + time_delta * speed,
+      );
+    }
+    // Update path so that the `disp_length + 1 <= path.length < disp_length + 2`
+    while (this.displayed_line.disp_length + 1 > this.displayed_line.path.length) {
+      if (this.displayed_line.path.length === this.ideal_line.path.length) {
+        this.displayed_line.disp_length = this.ideal_line.path.length - 1;
+      } else {
+        this.displayed_line.path.push(this.ideal_line.path[this.displayed_line.path.length]);
+      }
+    }
+    while (this.displayed_line.path.length >= this.displayed_line.disp_length + 2) {
+      this.displayed_line.path.pop();
+    }
   }
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
