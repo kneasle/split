@@ -203,7 +203,7 @@ class Grid {
       if (this.line_path.length <= 1) {
         let _interaction = interaction!;
         should_be_line_colored = v_idx === _interaction.vert_idx &&
-          _interaction.vert_distance <= VERTEX_INTERACTION_RADIUS;
+          (this.is_drawing_line || _interaction.vert_distance <= VERTEX_INTERACTION_RADIUS);
       } else {
         let start_vert = this.line_path[0];
         let end_vert = this.line_path[this.line_path.length - 1];
