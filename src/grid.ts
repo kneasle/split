@@ -280,9 +280,9 @@ class Grid {
     // Get the rectangle in which the puzzle has to fit
     let rect = {
       x: 0,
-      y: PUZZLE_WORLD_SCALE,
+      y: PUZZLE_HEADER_HEIGHT,
       w: canvas.width,
-      h: canvas.height - PUZZLE_WORLD_SCALE,
+      h: canvas.height - PUZZLE_HEADER_HEIGHT,
     };
     let scale_multiplier;
     if (state === "overlay") {

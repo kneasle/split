@@ -22,7 +22,7 @@ const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 const VERTEX_INTERACTION_RADIUS = 0.4;
 // Display
 const PUZZLE_WORLD_SCALE = 100; // Pixels
-const HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels
+const PUZZLE_HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels
 const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
@@ -160,7 +160,7 @@ class Game {
         -current_puzzle.pos.x,
         -current_puzzle.pos.y,
         PUZZLE_WORLD_SCALE,
-      ).then_translate(canvas.width / 2, HEADER_HEIGHT / 2);
+      ).then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
 
       let overlay_factor = this.overlay.tween.get();
       return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
