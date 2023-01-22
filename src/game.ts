@@ -189,7 +189,8 @@ class Game {
   }
 
   on_mouse_down(): void {
-    if (this.overlay_fully_on()) {
+    if (!this.overlay_fully_off()) {
+      // TODO: Don't start lines while the overlay is tweening in?
       const was_click_registered = this.overlay.grid.on_mouse_down();
       if (!was_click_registered) {
         this.overlay.tween.animate_to(0);
