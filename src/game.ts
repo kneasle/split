@@ -156,19 +156,15 @@ class Game {
       PUZZLE_WORLD_SCALE,
     ).then_translate(canvas.width / 2, canvas.height / 2);
 
-    if (this.overlay !== undefined) {
-      let current_puzzle = this.puzzles[this.overlay.puzzle_idx];
-      let pure_overlay_transform = new Transform(
-        -current_puzzle.pos.x,
-        -current_puzzle.pos.y,
-        PUZZLE_WORLD_SCALE,
-      ).then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
+    let current_puzzle = this.puzzles[this.overlay.puzzle_idx];
+    let pure_overlay_transform = new Transform(
+      -current_puzzle.pos.x,
+      -current_puzzle.pos.y,
+      PUZZLE_WORLD_SCALE,
+    ).then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
 
-      let overlay_factor = this.overlay.tween.get();
-      return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
-    } else {
-      return pure_camera_transform;
-    }
+    let overlay_factor = this.overlay.tween.get();
+    return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
   }
 
   /* INTERACTION */
