@@ -223,6 +223,9 @@ class Grid {
 
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = line_color;
+    // TODO: I wonder if this looks too much like The Witness...
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.beginPath();
     // Draw all full edges in the displayed line
     for (let i = 0; i < line.disp_length - 0.9999; i++) {
