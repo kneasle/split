@@ -181,12 +181,12 @@ class Puzzle {
     return nearest;
   }
 
-  connecting_edge(vert_1: number, vert_2: number): number | null {
+  connecting_edge(vert_1: number, vert_2: number): number | undefined {
     for (let i = 0; i < this.edges.length; i++) {
       const { v1, v2 } = this.edges[i];
       if (vert_1 === v1 && vert_2 === v2) return i;
       if (vert_1 === v2 && vert_2 === v1) return i;
     }
-    return null;
+    return undefined;
   }
 }
