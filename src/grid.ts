@@ -1,7 +1,4 @@
-const GRID_STATE_ENTER = "entry";
-const GRID_STATE_MAIN = "main";
-
-type TransformState = "entry" | "main" | { puzzle_idx: number; grid_idx: number; faded: boolean };
+type TransformState = "tiny" | "overlay" | { puzzle_idx: number; grid_idx: number; faded: boolean };
 
 function is_faded(s: TransformState): boolean {
   if (typeof s === "object") return s.faded;
@@ -19,7 +16,7 @@ class Grid {
   pips: Pip[];
   pip_idxs_per_cell: number[][];
 
-  constructor(puzzle: Puzzle) {
+  constructor(puzzle: Puzzle, state: TransformState) {
     this.puzzle = puzzle;
     this.line = []; // List of vertex indices which make up the line being drawn
     this.is_drawing_line = false;
@@ -31,11 +28,10 @@ class Grid {
 
     // State for animating the transform
     this.transform_tween = new Tween<TransformState>(
-      GRID_STATE_ENTER,
-      GRID_ENTRY_ANIMATION_TIME,
+      state,
+      GRID_MOVE_ANIMATION_TIME,
       (_a, b, _t) => b,
     );
-    this.transform_tween.animate_to(GRID_STATE_MAIN);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -52,8 +48,8 @@ class Grid {
     }
   }
 
-  on_mouse_down(puzzle_world_transform: Transform): boolean {
-    const interaction = this.interaction(puzzle_world_transform)!;
+  on_mouse_down(): boolean {
+    const interaction = this.interaction()!;
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
       this.line = [interaction.vert_idx];
@@ -78,10 +74,10 @@ class Grid {
     return true;
   }
 
-  on_mouse_move(puzzle_world_transform: Transform) {
+  on_mouse_move() {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
-    const interaction = this.interaction(puzzle_world_transform)!;
+    const interaction = this.interaction()!;
 
     let new_vert = interaction.vert_idx;
     let last_vert = this.line[this.line.length - 1];
@@ -161,11 +157,11 @@ class Grid {
     }
   }
 
-  draw(puzzle_world_transform: Transform) {
-    const interaction = this.interaction(puzzle_world_transform);
+  draw() {
+    const interaction = this.interaction();
 
     // Update canvas's transformation matrix to the puzzle's local space
-    let transform = this.current_transform(puzzle_world_transform);
+    let transform = this.current_transform();
     ctx.save();
     ctx.translate(transform.dx, transform.dy);
     ctx.scale(transform.scale, transform.scale);
@@ -250,9 +246,9 @@ class Grid {
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
   // interacting with the nearest vertex to the mouse).
-  interaction(puzzle_world_transform: Transform) {
+  interaction() {
     // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.current_transform(puzzle_world_transform);
+    let transform = this.current_transform();
     let local_x = (mouse_x - transform.dx) / transform.scale + this.puzzle.width / 2;
     let local_y = (mouse_y - transform.dy) / transform.scale + this.puzzle.height / 2;
 
@@ -274,37 +270,32 @@ class Grid {
     return interaction;
   }
 
-  current_transform(puzzle_world_transform: Transform): Transform {
+  current_transform(): Transform {
     return this.transform_tween.get_with_lerp_fn(
-      (a, b, t) =>
-        Transform.lerp(
-          this.transform(a, puzzle_world_transform),
-          this.transform(b, puzzle_world_transform),
-          t,
-        ),
+      (a, b, t) => Transform.lerp(this.transform(a), this.transform(b), t),
     );
   }
 
-  transform(state: TransformState, puzzle_world_transform: Transform): Transform {
+  transform(state: TransformState): Transform {
     // Get the rectangle in which the puzzle has to fit
-    let rect;
-    let is_zero_size;
-    if (state === GRID_STATE_ENTER || state === GRID_STATE_MAIN) {
-      rect = {
-        x: 0,
-        y: PUZZLE_WORLD_SCALE,
-        w: canvas.width,
-        h: canvas.height - PUZZLE_WORLD_SCALE,
-      };
-      is_zero_size = state === GRID_STATE_ENTER;
+    let rect = {
+      x: 0,
+      y: PUZZLE_WORLD_SCALE,
+      w: canvas.width,
+      h: canvas.height - PUZZLE_WORLD_SCALE,
+    };
+    let scale_multiplier;
+    if (state === "overlay") {
+      scale_multiplier = game.overlay.tween.get();
+    } else if (state === "tiny") {
+      scale_multiplier = 0;
     } else {
-      // TODO: Don't access `game` directly, instead pass transform
-      let { x, y } = puzzle_world_transform.transform_point(
+      let { x, y } = game.camera_transform().transform_point(
         this.puzzle.pos.x + state.grid_idx - this.puzzle.num_solutions / 2,
         this.puzzle.pos.y - 0.5,
       );
       rect = { x, y, w: PUZZLE_WORLD_SCALE, h: PUZZLE_WORLD_SCALE };
-      is_zero_size = state.faded;
+      scale_multiplier = state.faded ? 0 : 1;
     }
 
     // Scale the puzzle to fill the given `rect`, with 0.5 cells of padding on every side
@@ -314,7 +305,7 @@ class Grid {
     return new Transform(
       rect.x + rect.w / 2,
       rect.y + rect.h / 2,
-      is_zero_size ? 0 : scale_to_fill,
+      scale_to_fill * scale_multiplier,
     );
   }
 

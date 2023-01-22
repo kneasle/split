@@ -14,13 +14,15 @@ const EDGE_WIDTH = 0.15;
 const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Animation
-const GRID_ENTRY_ANIMATION_TIME = 0.7; // Seconds
+const OVERLAY_ANIMATION_TIME = 0.4; // Seconds
+const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
 const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
 // Display
 const PUZZLE_WORLD_SCALE = 100; // Pixels
+const HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels
 const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
@@ -30,7 +32,7 @@ class Game {
   puzzles: Puzzle[];
   fading_grids: Grid[];
   /* Puzzle overlay */
-  overlay: Overlay | undefined;
+  overlay: Overlay;
 
   constructor(puzzles: Puzzle[]) {
     // Puzzle world
@@ -38,7 +40,11 @@ class Game {
     this.puzzles = puzzles;
     this.fading_grids = [];
     // Overlay
-    this.overlay = undefined;
+    this.overlay = {
+      grid: new Grid(puzzles[0], "overlay"),
+      puzzle_idx: 0,
+      tween: new Tween(0, OVERLAY_ANIMATION_TIME, lerp),
+    };
   }
 
   update(_time_delta: number) {
@@ -49,7 +55,7 @@ class Game {
     );
 
     // Trigger adding the solution on the overlay grid to puzzle scene
-    if (this.overlay && this.overlay.grid.is_ready_to_be_stashed()) {
+    if (this.overlay.grid.is_ready_to_be_stashed()) {
       let { grid, puzzle_idx } = this.overlay;
       let solved_grids = this.puzzles[puzzle_idx].solved_grids;
       const pip_group_size = grid.solution.pip_group_size;
@@ -75,8 +81,9 @@ class Game {
       for (let i = 0; i < solved_grids.length; i++) {
         solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: false });
       }
-      // Create a new main grid to replace the old one
-      this.overlay.grid = new Grid(this.puzzles[puzzle_idx]);
+      // Create a new main grid to replace the old one, and immediately start an animation
+      this.overlay.grid = new Grid(this.puzzles[puzzle_idx], "tiny");
+      this.overlay.grid.transform_tween.animate_to("overlay");
     }
   }
 
@@ -86,22 +93,22 @@ class Game {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     /* PUZZLE WORLD */
-    let transform = this.transform();
-    let scale = transform.scale;
+    let camera_transform = this.camera_transform();
+    let scale = camera_transform.scale;
     // Puzzles
     for (let i = 0; i < this.puzzles.length; i++) {
       let puzzle = this.puzzles[i];
       let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
-      let min = transform.transform_point(
+      let min = camera_transform.transform_point(
         puzzle.pos.x - num_solutions / 2,
         puzzle.pos.y - 1 / 2,
       );
       ctx.strokeRect(min.x, min.y, num_solutions * scale, scale);
       // Boxes for solved grids
       for (let i = 0; i < num_solutions; i++) {
-        let min = transform.transform_point(
+        let min = camera_transform.transform_point(
           puzzle.pos.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
           puzzle.pos.y - 1 / 2 + SOLVED_GRIDS_BORDER,
         );
@@ -123,42 +130,56 @@ class Game {
       }
     }
 
-    for (const grid of this.fading_grids) grid.draw(transform);
+    for (const grid of this.fading_grids) grid.draw();
     for (const g of grids) {
       if (!g.transform_tween.is_animating()) {
-        g.draw(transform);
+        g.draw();
       }
     }
     // Draw animating grids above normal grids
     for (const g of grids) {
       if (g.transform_tween.is_animating()) {
-        g.draw(transform);
+        g.draw();
       }
     }
-    if (this.overlay) this.overlay.grid.draw(transform);
+    this.overlay.grid.draw();
   }
 
   /* TRANSFORMS */
 
-  transform(): Transform {
-    // TODO: Lerp the state when doing ease in/out for the overlay
+  camera_transform(): Transform {
     let pure_camera_transform = new Transform(
       -this.camera_pos.x,
       -this.camera_pos.y,
       PUZZLE_WORLD_SCALE,
-    ).then(new Transform(canvas.width / 2, canvas.height / 2, 1));
-    return pure_camera_transform;
+    ).then_translate(canvas.width / 2, canvas.height / 2);
+
+    if (this.overlay !== undefined) {
+      let current_puzzle = this.puzzles[this.overlay.puzzle_idx];
+      let pure_overlay_transform = new Transform(
+        -current_puzzle.pos.x,
+        -current_puzzle.pos.y,
+        PUZZLE_WORLD_SCALE,
+      ).then_translate(canvas.width / 2, HEADER_HEIGHT / 2);
+
+      let overlay_factor = this.overlay.tween.get();
+      return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
+    } else {
+      return pure_camera_transform;
+    }
   }
 
   /* INTERACTION */
 
   on_mouse_move(dx: number, dy: number) {
-    if (this.overlay) {
-      this.overlay.grid.on_mouse_move(this.transform());
-    } else {
+    if (this.overlay_fully_on()) {
+      this.overlay.grid.on_mouse_move();
+    }
+
+    if (this.overlay_fully_off()) {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
-        let { scale } = this.transform();
+        let { scale } = this.camera_transform();
         this.camera_pos.x -= dx / scale;
         this.camera_pos.y -= dy / scale;
       }
@@ -166,35 +187,48 @@ class Game {
   }
 
   on_mouse_down() {
-    if (this.overlay) {
-      const was_click_registered = this.overlay.grid.on_mouse_down(this.transform());
-      if (!was_click_registered) this.overlay = undefined;
-    } else {
+    if (this.overlay_fully_on()) {
+      const was_click_registered = this.overlay.grid.on_mouse_down();
+      if (!was_click_registered) {
+        this.overlay.tween.animate_to(0);
+      }
+    }
+
+    if (this.overlay_fully_off()) {
       // No overlay grid means we should be interacting with the puzzle world
-      let { x, y } = this.transform().inv().transform_point(mouse_x, mouse_y);
+      let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
       for (let i = 0; i < this.puzzles.length; i++) {
         let p = puzzles[i];
         if (x < p.pos.x - p.num_solutions / 2 || x > p.pos.x + p.num_solutions / 2) continue;
         if (y < p.pos.y - 1 / 2 || y > p.pos.y + 1 / 2) continue;
         // Mouse is within this puzzle's rect, so open it as a puzzle
-        this.overlay = {
-          grid: new Grid(p),
-          puzzle_idx: i,
-        };
+        this.overlay.grid = new Grid(p, "overlay");
+        this.overlay.puzzle_idx = i;
+        this.overlay.tween.animate_to(1);
       }
     }
   }
 
   on_mouse_up() {
-    if (this.overlay) {
+    if (this.overlay_fully_on()) {
       this.overlay.grid.on_mouse_up();
-    } else {
-      // No overlay grid means we should be interacting with the puzzle world
     }
+  }
+
+  overlay_fully_on(): boolean {
+    return this.overlay.tween.get() > 1 - 1e-6;
+  }
+
+  overlay_fully_off(): boolean {
+    return this.overlay.tween.get() < 1e-6;
   }
 }
 
-type Overlay = { grid: Grid; puzzle_idx: number };
+type Overlay = {
+  grid: Grid;
+  puzzle_idx: number;
+  tween: Tween<number>;
+};
 
 /* ===== BOILERPLATE CODE FOR BROWSER INTERFACING ===== */
 
