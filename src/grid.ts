@@ -71,10 +71,8 @@ class Grid {
     }
     this.solution = undefined;
 
-    // Also reset the lines too
+    // Reset ideal line
     this.ideal_line = { path: [...this.line_path], disp_length: 0 };
-    // TODO: Maybe smoothly lerp between the old and new lines
-    this.displayed_line = { path: [...this.line_path], disp_length: 0 };
     return true;
   }
 
@@ -305,7 +303,8 @@ class Grid {
   }
 
   update_display_line(time_delta: number): void {
-    // Next, smoothly update the displayed line to make it rapidly get close to the ideal
+    // Work out where we need to be animating to (this tells us whether to extend or contract the
+    // line)
     let common_prefix_length = 0;
     while (
       common_prefix_length < this.ideal_line.path.length &&
@@ -317,13 +316,22 @@ class Grid {
     let length_to_animate_to = (common_prefix_length === this.displayed_line.path.length)
       ? this.ideal_line.disp_length
       : common_prefix_length - 1;
-    // Update length
+
+    // Decide how fast to render the lines
+    let lerp_speed_factor = LINE_LERP_SPEED_FACTOR;
+    let max_speed = Infinity;
+    if (common_prefix_length <= 1) {
+      lerp_speed_factor = this.is_drawing_line ? 1500 : 1000;
+      max_speed = this.is_drawing_line ? 20000 : 10000;
+    }
     let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
       Math.abs(this.ideal_line.disp_length - length_to_animate_to);
-    let speed = Math.max(
-      LINE_LERP_SPEED_FACTOR * distance_to_travel,
-      MIN_LINE_LERP_SPEED,
+    let speed = Math.min(
+      Math.max(lerp_speed_factor * distance_to_travel, MIN_LINE_LERP_SPEED),
+      max_speed,
     ) / this.current_transform().scale;
+
+    // Update length
     if (length_to_animate_to < this.displayed_line.disp_length) {
       this.displayed_line.disp_length = Math.max(
         length_to_animate_to,
@@ -335,6 +343,7 @@ class Grid {
         this.displayed_line.disp_length + time_delta * speed,
       );
     }
+
     // Update path so that the `disp_length + 1 <= path.length < disp_length + 2`
     while (this.displayed_line.disp_length + 1 > this.displayed_line.path.length) {
       if (this.displayed_line.path.length === this.ideal_line.path.length) {
