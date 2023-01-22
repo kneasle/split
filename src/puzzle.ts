@@ -141,11 +141,34 @@ class Puzzle {
     return { is_correct, pip_group_size, regions, time: Date.now() };
   }
 
-  // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle
-  nearest_edge(p_x: number, p_y: number): NearestEdge {
+  // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle, *excluding* those already on
+  // the given `line`.
+  nearest_edge_point_extending_line(p_x: number, p_y: number, line: number[]): NearestEdge {
     let nearest = undefined;
     for (let edge_idx = 0; edge_idx < this.edges.length; edge_idx++) {
       let { v1, v2 } = this.edges[edge_idx];
+
+      // Test if this edge is extending the line but not already on it
+      let is_extending_line = line.length === 0 ||
+        v1 === line[line.length - 1] ||
+        v2 === line[line.length - 1];
+      let is_on_line = false;
+      for (let i = 0; i < line.length - 2; i++) {
+        if (
+          (line[i] === v1 && line[i + 1] === v2) ||
+          (line[i] === v2 && line[i + 1] === v1)
+        ) {
+          is_on_line = true;
+          break;
+        }
+      }
+      if (is_on_line || !is_extending_line) {
+        continue;
+      }
+
+      // If this edge is a valid extension/contraction of the line, then it is a candidate for
+      // being the closest edge to the point.
+
       let s_x = this.verts[v1].x;
       let s_y = this.verts[v1].y;
       let d_x = this.verts[v2].x - s_x;

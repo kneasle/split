@@ -274,7 +274,11 @@ class Grid {
 
   update_ideal_line(interaction: Interaction) {
     // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
-    let edge_data = this.puzzle.nearest_edge(interaction.local_x, interaction.local_y);
+    let edge_data = this.puzzle.nearest_edge_point_extending_line(
+      interaction.local_x,
+      interaction.local_y,
+      this.line_path,
+    );
     let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
     let lerp_factor = edge_data.lambda;
     // If needed, reverse the edge so that `v1` is equal the last vertex in `this.line_path`
