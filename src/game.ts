@@ -22,6 +22,7 @@ const LINE_LERP_SPEED_FACTOR = 6000; // Pixels/second per pixel
 const MIN_LINE_LERP_SPEED = 3000; // Pixels/second
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
+const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
 // Display
 const PUZZLE_WORLD_SCALE = 100; // Pixels
 const PUZZLE_HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels

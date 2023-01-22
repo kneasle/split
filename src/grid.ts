@@ -17,8 +17,8 @@ class Grid {
 
     this.line_path = []; // List of vertex indices which make up the line being drawn
     this.is_drawing_line = false;
-    this.ideal_line = { path: [], disp_length: 0 };
-    this.displayed_line = { path: [], disp_length: 0 };
+    this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
+    this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
     // For every `Grid`, `solution` is always in one of three states:
     // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
     // 2) `this.solution.is_valid === true`: the solution is valid
@@ -72,7 +72,7 @@ class Grid {
     this.solution = undefined;
 
     // Reset ideal line
-    this.ideal_line = { path: [...this.line_path], disp_length: 0 };
+    this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
     return true;
   }
 
@@ -114,10 +114,19 @@ class Grid {
     // Check the user's solution
     const is_line_loop = this.line_path.length > 1 &&
       this.line_path[0] === this.line_path[this.line_path.length - 1];
-    if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
+    if (!is_line_loop) {
+      if (this.ideal_line.disp_length < MIN_LINE_LENGTH_TO_KEEP) {
+        this.ideal_line = { path: [], disp_length: 0, was_short_line: true };
+      }
+      return; // Can't solve the puzzle if the line doesn't form a loop
+    }
     this.solution = this.puzzle.get_solution(this.line_path);
     // Once the puzzle is solved, display an exactly full line
-    this.ideal_line = { path: [...this.line_path], disp_length: this.line_path.length };
+    this.ideal_line = {
+      path: [...this.line_path],
+      disp_length: this.line_path.length,
+      was_short_line: false,
+    };
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
@@ -299,6 +308,7 @@ class Grid {
     this.ideal_line = {
       path: ideal_line_path,
       disp_length: ideal_line_path.length - 1 - lerp_factor,
+      was_short_line: false,
     };
   }
 
@@ -319,17 +329,20 @@ class Grid {
 
     // Decide how fast to render the lines
     let lerp_speed_factor = LINE_LERP_SPEED_FACTOR;
+    let min_speed = MIN_LINE_LERP_SPEED;
     let max_speed = Infinity;
     if (common_prefix_length <= 1) {
       lerp_speed_factor = this.is_drawing_line ? 1500 : 1000;
       max_speed = this.is_drawing_line ? 20000 : 10000;
+      if (this.ideal_line.was_short_line) {
+        lerp_speed_factor = 200;
+        min_speed = 50;
+      }
     }
     let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
       Math.abs(this.ideal_line.disp_length - length_to_animate_to);
-    let speed = Math.min(
-      Math.max(lerp_speed_factor * distance_to_travel, MIN_LINE_LERP_SPEED),
-      max_speed,
-    ) / this.transform().scale;
+    let speed = Math.min(Math.max(lerp_speed_factor * distance_to_travel, min_speed), max_speed);
+    speed /= this.transform().scale;
 
     // Update length
     if (length_to_animate_to < this.displayed_line.disp_length) {
@@ -460,6 +473,7 @@ function is_faded(s: TransformState): boolean {
 type LerpedLine = {
   path: number[];
   disp_length: number;
+  was_short_line: boolean;
 };
 
 type Interaction = {
