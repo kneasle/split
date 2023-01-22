@@ -1,10 +1,10 @@
 /* Abstract representations of puzzles */
 
 type Cell = {
-  verts: number[],
-  centre: Vec2,
-  pips: number,
-  neighbours: { edge_idx: number, cell_idx: number }[],
+  verts: number[];
+  centre: Vec2;
+  pips: number;
+  neighbours: { edge_idx: number; cell_idx: number }[];
 };
 
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
@@ -16,7 +16,7 @@ class Puzzle {
   height: number;
 
   verts: Vec2[];
-  edges: { v1: number, v2: number }[];
+  edges: { v1: number; v2: number }[];
   cells: Cell[];
 
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
