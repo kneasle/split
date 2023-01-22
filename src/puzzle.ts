@@ -1,12 +1,5 @@
 /* Abstract representations of puzzles */
 
-type Cell = {
-  verts: number[];
-  centre: Vec2;
-  pips: number;
-  neighbours: { edge_idx: number; cell_idx: number }[];
-};
-
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
   pos: Vec2;
@@ -91,7 +84,7 @@ class Puzzle {
     }
   }
 
-  get_solution(line: number[]) {
+  get_solution(line: number[]): Solution {
     console.assert(line[0] === line[line.length - 1]); // Check that line forms a loop
     // Determine which edges are in the line
     let is_edge_in_line = [];
@@ -145,14 +138,14 @@ class Puzzle {
     const is_correct = pip_counts.length > 1 && pip_counts.every((p) => p == pip_group_size);
 
     // Package the solution and return
-    return { is_correct, pip_group_size, regions };
+    return { is_correct, pip_group_size, regions, time: Date.now() };
   }
 
   // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle
-  nearest_edge(p_x: number, p_y: number) {
+  nearest_edge(p_x: number, p_y: number): NearestEdge | undefined {
     let nearest = undefined;
-    for (let e = 0; e < this.edges.length; e++) {
-      let { v1, v2 } = this.edges[e];
+    for (let edge_idx = 0; edge_idx < this.edges.length; edge_idx++) {
+      let { v1, v2 } = this.edges[edge_idx];
       let s_x = this.verts[v1].x;
       let s_y = this.verts[v1].y;
       let d_x = this.verts[v2].x - s_x;
@@ -167,14 +160,14 @@ class Puzzle {
       // Compute distance
       let dist_x = p_x - nearest_x;
       let dist_y = p_y - nearest_y;
-      let dist = Math.sqrt(dist_x * dist_x + dist_y * dist_y);
-      if (nearest === undefined || dist < nearest.distance) {
+      let distance = Math.sqrt(dist_x * dist_x + dist_y * dist_y);
+      if (nearest === undefined || distance < nearest.distance) {
         nearest = {
-          edge_idx: e,
+          edge_idx,
           lambda,
           x: nearest_x,
           y: nearest_y,
-          distance: dist,
+          distance,
         };
       }
     }
@@ -190,3 +183,26 @@ class Puzzle {
     return undefined;
   }
 }
+
+type Cell = {
+  verts: number[];
+  centre: Vec2;
+  pips: number;
+  neighbours: { edge_idx: number; cell_idx: number }[];
+};
+
+type Solution = {
+  is_correct: boolean;
+  pip_group_size: number;
+  regions: Region[];
+  time: number;
+};
+type Region = { pips: number; cells: number[] };
+
+type NearestEdge = {
+  edge_idx: number;
+  lambda: number;
+  x: number;
+  y: number;
+  distance: number;
+};

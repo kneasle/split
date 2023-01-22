@@ -49,7 +49,7 @@ class Color {
 
 /* ARRAY MANIPULATION */
 
-function sort_by_key<T>(arr: T[], key: (v: T) => any[]) {
+function sort_by_key<T>(arr: T[], key: (v: T) => any[]): T[] {
   arr = [...arr];
   arr.sort((a, b) => {
     let vs_a = key(a);
@@ -66,7 +66,7 @@ function sort_by_key<T>(arr: T[], key: (v: T) => any[]) {
 }
 
 // Removes any items from `arr` which fail `pred`
-function retain<T>(arr: T[], pred: (v: T) => boolean) {
+function retain<T>(arr: T[], pred: (v: T) => boolean): void {
   let idxs_to_remove = [];
   for (let i = 0; i < arr.length; i++) {
     if (!pred(arr[i])) {
@@ -98,7 +98,7 @@ class Tween<T> {
     this.random_delay_factor = 0;
   }
 
-  animate_to(target: T) {
+  animate_to(target: T): void {
     this.source = this.get();
     this.target = target;
     this._anim_start = Date.now() +

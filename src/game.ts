@@ -47,7 +47,7 @@ class Game {
     };
   }
 
-  update(_time_delta: number) {
+  update(_time_delta: number): void {
     // Remove any grids which have fully faded
     retain(
       this.fading_grids,
@@ -58,19 +58,19 @@ class Game {
     if (this.overlay.grid.is_ready_to_be_stashed()) {
       let { grid, puzzle_idx } = this.overlay;
       let solved_grids = this.puzzles[puzzle_idx].solved_grids;
-      const pip_group_size = grid.solution.pip_group_size;
+      const pip_group_size = grid.solution!.pip_group_size;
       // Decide where the new grid should go to keep the grids sorted by solution
       let idx_of_solved_grid = 0;
       while (true) {
         if (idx_of_solved_grid === solved_grids.length) break;
-        if (solved_grids[idx_of_solved_grid].solution.pip_group_size >= pip_group_size) {
+        if (solved_grids[idx_of_solved_grid].solution!.pip_group_size >= pip_group_size) {
           break;
         }
         idx_of_solved_grid++;
       }
       // Add the new grid, replacing an existing grid if that grid has the same count
       let i = idx_of_solved_grid;
-      if (solved_grids[i] && solved_grids[i].solution.pip_group_size === pip_group_size) {
+      if (solved_grids[i] && solved_grids[i].solution!.pip_group_size === pip_group_size) {
         solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: true });
         this.fading_grids.push(solved_grids[i]);
         solved_grids[i] = grid;
@@ -87,7 +87,7 @@ class Game {
     }
   }
 
-  draw() {
+  draw(): void {
     /* BACKGROUND */
     ctx.fillStyle = BG_COLOR.to_canvas_color();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -171,7 +171,7 @@ class Game {
 
   /* INTERACTION */
 
-  on_mouse_move(dx: number, dy: number) {
+  on_mouse_move(dx: number, dy: number): void {
     if (this.overlay_fully_on()) {
       this.overlay.grid.on_mouse_move();
     }
@@ -186,7 +186,7 @@ class Game {
     }
   }
 
-  on_mouse_down() {
+  on_mouse_down(): void {
     if (this.overlay_fully_on()) {
       const was_click_registered = this.overlay.grid.on_mouse_down();
       if (!was_click_registered) {
@@ -209,7 +209,7 @@ class Game {
     }
   }
 
-  on_mouse_up() {
+  on_mouse_up(): void {
     if (this.overlay_fully_on()) {
       this.overlay.grid.on_mouse_up();
     }
@@ -383,7 +383,7 @@ function update_mouse(evt: MouseEvent) {
 
 on_resize();
 let last_frame_time = Date.now();
-function frame() {
+function frame(): void {
   let time_delta = (Date.now() - last_frame_time) / 1000;
   last_frame_time = Date.now();
   game.update(time_delta);

@@ -1,16 +1,9 @@
-type TransformState = "tiny" | "overlay" | { puzzle_idx: number; grid_idx: number; faded: boolean };
-
-function is_faded(s: TransformState): boolean {
-  if (typeof s === "object") return s.faded;
-  else return false;
-}
-
 /// An instance of a `Puzzle` on the screen
 class Grid {
   puzzle: Puzzle;
   line: number[];
   is_drawing_line: boolean;
-  solution: any; // TODO: Explicit type
+  solution: Solution | undefined;
   transform_tween: Tween<TransformState>;
 
   pips: Pip[];
@@ -74,7 +67,7 @@ class Grid {
     return true;
   }
 
-  on_mouse_move() {
+  on_mouse_move(): void {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
     const interaction = this.interaction()!;
@@ -104,7 +97,7 @@ class Grid {
     }
   }
 
-  on_mouse_up() {
+  on_mouse_up(): void {
     if (!this.is_drawing_line) return; // Mouse ups don't matter if we aren't drawing a line
 
     this.is_drawing_line = false;
@@ -113,7 +106,7 @@ class Grid {
     const is_line_loop = this.line.length > 1 && this.line[0] === this.line[this.line.length - 1];
     if (!is_line_loop) return; // Don't solve the puzzle if the line doesn't form a loop
     this.solution = this.puzzle.get_solution(this.line);
-    this.solution.time = Date.now();
+    if (typeof this.solution === "undefined") throw Error();
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
@@ -157,7 +150,7 @@ class Grid {
     }
   }
 
-  draw() {
+  draw(): void {
     const interaction = this.interaction();
 
     // Update canvas's transformation matrix to the puzzle's local space
@@ -246,7 +239,7 @@ class Grid {
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
   // interacting with the nearest vertex to the mouse).
-  interaction() {
+  interaction(): Interaction | undefined {
     // Transform mouse coordinates into the puzzle's coord space
     let transform = this.current_transform();
     let local_x = (mouse_x - transform.dx) / transform.scale + this.puzzle.width / 2;
@@ -309,7 +302,7 @@ class Grid {
     );
   }
 
-  pip_coords(cell_idx: number, pip_idx: number, num_pips: number | undefined) {
+  pip_coords(cell_idx: number, pip_idx: number, num_pips: number | undefined): Vec2 {
     const cell = this.puzzle.cells[cell_idx];
     const { x, y } = dice_pattern(num_pips || cell.pips)[pip_idx];
     return {
@@ -318,24 +311,38 @@ class Grid {
     };
   }
 
-  is_ready_to_be_stashed() {
+  is_ready_to_be_stashed(): boolean {
     return this.is_correctly_solved() &&
       // TODO: Add extra factor for other animations
-      uneased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) >= 2.0;
+      uneased_anim_factor(this.solution!.time, SOLVE_ANIMATION_TIME) >= 2.0;
   }
 
-  solution_anim_factor() {
+  solution_anim_factor(): number {
     return this.solution ? eased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) : 0;
   }
 
-  is_correctly_solved() {
-    return this.solution && this.solution.is_correct;
+  is_correctly_solved(): boolean {
+    return this.solution !== undefined && this.solution.is_correct;
   }
 
-  solution_color() {
+  solution_color(): Color {
     return this.is_correctly_solved() ? CORRECT_COLOR : INCORRECT_COLOR;
   }
 }
+
+type TransformState = "tiny" | "overlay" | { puzzle_idx: number; grid_idx: number; faded: boolean };
+
+function is_faded(s: TransformState): boolean {
+  if (typeof s === "object") return s.faded;
+  else return false;
+}
+
+type Interaction = {
+  local_x: number;
+  local_y: number;
+  vert_idx: number;
+  vert_distance: number;
+};
 
 class Pip {
   source_cell_idx: number;
@@ -364,7 +371,7 @@ function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
 }
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
-function dice_pattern(num_pips: number): { x: number; y: number }[] {
+function dice_pattern(num_pips: number): Vec2[] {
   const pip_pair_patterns = [
     [1, -1], // 2
     [1, 1], // 4
