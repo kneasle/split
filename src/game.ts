@@ -46,6 +46,7 @@ class Game {
       grid: new Grid(puzzles[0], "overlay"),
       puzzle_idx: 0,
       tween: new Tween(0, OVERLAY_ANIMATION_TIME, lerp),
+      should_close: false,
     };
   }
 
@@ -85,7 +86,18 @@ class Game {
       }
       // Create a new main grid to replace the old one, and immediately start an animation
       this.overlay.grid = new Grid(this.puzzles[puzzle_idx], "tiny");
-      this.overlay.grid.transform_tween.animate_to("overlay");
+      if (!this.overlay.should_close) {
+        this.overlay.grid.transform_tween.animate_to("overlay");
+      }
+    }
+
+    // If the grid is playing its solve animation, delay any close requests until the animation is
+    // complete
+    const is_waiting_for_solve_animation = this.overlay.grid.is_correctly_solved() &&
+      !this.overlay.grid.is_ready_to_be_stashed();
+    if (this.overlay.should_close && !is_waiting_for_solve_animation) {
+      this.overlay.tween.animate_to(0);
+      this.overlay.should_close = false;
     }
   }
 
@@ -186,10 +198,10 @@ class Game {
 
   on_mouse_down(): void {
     if (!this.overlay_fully_off()) {
-      // TODO: Don't start lines while the overlay is tweening in?
+      // TODO: Don't allow drawing lines while the overlay is tweening in?
       const was_click_registered = this.overlay.grid.on_mouse_down();
       if (!was_click_registered) {
-        this.overlay.tween.animate_to(0);
+        this.overlay.should_close = true;
       }
     }
 
@@ -227,6 +239,10 @@ type Overlay = {
   grid: Grid;
   puzzle_idx: number;
   tween: Tween<number>;
+  // If the user closes the overlay in the time between a puzzle being solved and being added to
+  // the solution we register that input but delay it until after solved grid has been added to the
+  // puzzle world
+  should_close: boolean;
 };
 
 /* ===== INIT CODE ===== */
