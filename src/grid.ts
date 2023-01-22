@@ -168,7 +168,7 @@ class Grid {
       .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
-    let transform = this.current_transform();
+    let transform = this.transform();
     ctx.save();
     ctx.translate(transform.dx, transform.dy);
     ctx.scale(transform.scale, transform.scale);
@@ -329,7 +329,7 @@ class Grid {
     let speed = Math.min(
       Math.max(lerp_speed_factor * distance_to_travel, MIN_LINE_LERP_SPEED),
       max_speed,
-    ) / this.current_transform().scale;
+    ) / this.transform().scale;
 
     // Update length
     if (length_to_animate_to < this.displayed_line.disp_length) {
@@ -361,7 +361,7 @@ class Grid {
   // interacting with the nearest vertex to the mouse).
   interaction(): Interaction | undefined {
     // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.current_transform();
+    let transform = this.transform();
     let local_x = (mouse_x - transform.dx) / transform.scale + this.puzzle.width / 2;
     let local_y = (mouse_y - transform.dy) / transform.scale + this.puzzle.height / 2;
 
@@ -383,13 +383,13 @@ class Grid {
     return interaction;
   }
 
-  current_transform(): Transform {
+  transform(): Transform {
     return this.transform_tween.get_with_lerp_fn(
-      (a, b, t) => Transform.lerp(this.transform(a), this.transform(b), t),
+      (a, b, t) => Transform.lerp(this.transform_from_state(a), this.transform_from_state(b), t),
     );
   }
 
-  transform(state: TransformState): Transform {
+  transform_from_state(state: TransformState): Transform {
     // Get the rectangle in which the puzzle has to fit
     let rect = {
       x: 0,
