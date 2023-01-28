@@ -20,36 +20,36 @@ class Puzzle {
 
     // Parse string into a list of pips in each cell
     let pip_lines = pattern.split("|");
-    this.width = pip_lines[0].length;
-    this.height = pip_lines.length;
+    let width = pip_lines[0].length;
+    let height = pip_lines.length;
 
     // Create vertices
     this.verts = [];
-    for (let y = 0; y < this.height + 1; y++) {
-      for (let x = 0; x < this.width + 1; x++) {
+    for (let y = 0; y < height + 1; y++) {
+      for (let x = 0; x < width + 1; x++) {
         this.verts.push({ x, y });
       }
     }
-    let vert_idx = (x: number, y: number) => y * (this.width + 1) + x;
+    let vert_idx = (x: number, y: number) => y * (width + 1) + x;
 
     this.edges = [];
     // Vertical edges
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width + 1; x++) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width + 1; x++) {
         this.edges.push({ v1: vert_idx(x, y), v2: vert_idx(x, y + 1) });
       }
     }
     // Horizontal edges
-    for (let y = 0; y < this.height + 1; y++) {
-      for (let x = 0; x < this.width; x++) {
+    for (let y = 0; y < height + 1; y++) {
+      for (let x = 0; x < width; x++) {
         this.edges.push({ v1: vert_idx(x + 1, y), v2: vert_idx(x, y) });
       }
     }
 
     // Cells
     this.cells = [];
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
         // Get the vertices surrounding this cell
         const tl = vert_idx(x, y);
         const tr = vert_idx(x + 1, y);
@@ -67,9 +67,9 @@ class Puzzle {
           let new_x = x + dx;
           let new_y = y + dy;
           // Neighbour is only valid if the opposite cell is actually in the grid
-          if (new_x < 0 || new_x >= this.width || new_y < 0 || new_y >= this.height) continue;
+          if (new_x < 0 || new_x >= width || new_y < 0 || new_y >= height) continue;
           // Add neighbour
-          let cell_idx = new_y * this.width + new_x;
+          let cell_idx = new_y * width + new_x;
           const edge_idx = this.connecting_edge(v1, v2)!;
           neighbours.push({ edge_idx, cell_idx });
         }
@@ -82,6 +82,23 @@ class Puzzle {
         });
       }
     }
+
+    // Translate puzzle so the minimum of the bounding box is at (0, 0)
+    let min = { x: Infinity, y: Infinity };
+    let max = { x: -Infinity, y: -Infinity };
+    for (const { x, y } of this.verts) {
+      min.x = Math.min(min.x, x);
+      min.y = Math.min(min.y, y);
+      max.x = Math.max(max.x, x);
+      max.y = Math.max(max.y, y);
+    }
+    for (const v of this.verts) {
+      v.x -= min.x;
+      v.y -= min.y;
+    }
+    // Store width and height of this puzzle's bounding box
+    this.width = max.x - min.x;
+    this.height = max.y - min.y;
   }
 
   get_solution(line: number[]): Solution {
