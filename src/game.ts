@@ -24,9 +24,10 @@ const MIN_LINE_LERP_SPEED = 3000; // Pixels/second
 const VERTEX_INTERACTION_RADIUS = 0.4;
 const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
 // Display
+const PUZZLE_BOX_MAX_WIDTH = 4;
+const PUZZLE_BOX_MAX_HEIGHT = 1;
 const PUZZLE_WORLD_SCALE = 100; // Pixels
 const PUZZLE_HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels
-const SOLVED_GRIDS_BORDER = 0.1; // Factor of `HEADER_HEIGHT`
 
 /// Singleton instance which handles all top-level game logic
 class Game {
@@ -109,33 +110,26 @@ class Game {
 
     /* PUZZLE WORLD */
     let camera_transform = this.camera_transform();
-    let scale = camera_transform.scale;
     // Puzzles
     for (let i = 0; i < this.puzzles.length; i++) {
       let puzzle = this.puzzles[i];
       let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
-      let min = camera_transform.transform_point(
-        puzzle.pos.x - num_solutions / 2,
-        puzzle.pos.y - 1 / 2,
-      );
-      ctx.strokeRect(min.x, min.y, num_solutions * scale, scale);
+      let rect = camera_transform.transform_rect(puzzle.overall_rect());
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
       // Boxes for solved grids
+      let grid_rect: Rect = { x: 0, y: 0, w: puzzle.grid_width, h: puzzle.grid_height };
       for (let i = 0; i < num_solutions; i++) {
-        let min = camera_transform.transform_point(
-          puzzle.pos.x - num_solutions / 2 + i + SOLVED_GRIDS_BORDER,
-          puzzle.pos.y - 1 / 2 + SOLVED_GRIDS_BORDER,
-        );
-        let size = (1 - SOLVED_GRIDS_BORDER * 2) * scale;
-        ctx.strokeRect(min.x, min.y, size, size);
+        let r = puzzle.grid_transform(i).then(camera_transform).transform_rect(grid_rect);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
       }
       // Puzzle Number
       ctx.fillStyle = "black";
       ctx.font = "50px monospace";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillText(`#${i + 1}`, min.x - 10, min.y + 0.5 * scale);
+      ctx.fillText(`#${i + 1}`, rect.x - 10, rect.y + rect.h / 2);
     }
     // Grids
     let grids = [];
@@ -163,18 +157,16 @@ class Game {
   /* TRANSFORMS */
 
   camera_transform(): Transform {
-    let pure_camera_transform = new Transform(
-      -this.camera_pos.x,
-      -this.camera_pos.y,
-      PUZZLE_WORLD_SCALE,
-    ).then_translate(canvas.width / 2, canvas.height / 2);
+    let pure_camera_transform = new Transform()
+      .then_translate(-this.camera_pos.x, -this.camera_pos.y)
+      .then_scale(PUZZLE_WORLD_SCALE)
+      .then_translate(canvas.width / 2, canvas.height / 2);
 
     let current_puzzle = this.puzzles[this.overlay.puzzle_idx];
-    let pure_overlay_transform = new Transform(
-      -current_puzzle.pos.x,
-      -current_puzzle.pos.y,
-      PUZZLE_WORLD_SCALE,
-    ).then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
+    let pure_overlay_transform = new Transform()
+      .then_translate(-current_puzzle.pos.x, -current_puzzle.pos.y)
+      .then_scale(PUZZLE_WORLD_SCALE)
+      .then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
 
     let overlay_factor = this.overlay.tween.get();
     return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
@@ -210,11 +202,11 @@ class Game {
       // No overlay grid means we should be interacting with the puzzle world
       let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
       for (let i = 0; i < this.puzzles.length; i++) {
-        let p = puzzles[i];
-        if (x < p.pos.x - p.num_solutions / 2 || x > p.pos.x + p.num_solutions / 2) continue;
-        if (y < p.pos.y - 1 / 2 || y > p.pos.y + 1 / 2) continue;
+        let r = puzzles[i].overall_rect();
+        if (x < r.x || x > r.x + r.w) continue;
+        if (y < r.y || y > r.y + r.h) continue;
         // Mouse is within this puzzle's rect, so open it as a puzzle
-        this.overlay.grid = new Grid(p, "overlay");
+        this.overlay.grid = new Grid(puzzles[i], "overlay");
         this.overlay.puzzle_idx = i;
         this.overlay.tween.animate_to(1);
       }
@@ -260,7 +252,7 @@ let _puzzles = [
   { num_solutions: 2, pattern: "11|11" },
   { num_solutions: 1, pattern: "11|1 " },
   { num_solutions: 2, pattern: " 1 |1 1| 1 " },
-  { num_solutions: 3, pattern: "11|11|11" },
+  { num_solutions: 3, pattern: "111|111" },
   { num_solutions: 2, pattern: "111|111|111" },
 
   // Cool set of puzzles

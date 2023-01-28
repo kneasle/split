@@ -54,8 +54,8 @@ class Grid {
       this.line_path = [interaction.vert_idx];
       this.is_drawing_line = true;
     } else if (
-      interaction.local_x >= 0 && interaction.local_x <= this.puzzle.width &&
-      interaction.local_y >= 0 && interaction.local_y <= this.puzzle.height
+      interaction.local_x >= 0 && interaction.local_x <= this.puzzle.grid_width &&
+      interaction.local_y >= 0 && interaction.local_y <= this.puzzle.grid_height
     ) {
       this.line_path = []; // Mouse is on the grid but can't start a line
     } else {
@@ -145,6 +145,7 @@ class Grid {
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned:
       //        - For symmetric regions, force pips onto the line of symmetry
+      //        - Try to make overall pattern symmetric
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell = _this.puzzle.cells[cell_idx];
@@ -177,11 +178,8 @@ class Grid {
       .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
-    let transform = this.transform();
     ctx.save();
-    ctx.translate(transform.dx, transform.dy);
-    ctx.scale(transform.scale, transform.scale);
-    ctx.translate(-this.puzzle.width / 2, -this.puzzle.height / 2);
+    this.transform().apply_to_canvas(ctx);
 
     // Cell
     ctx.fillStyle = CELL_COLOR.to_canvas_color();
@@ -378,20 +376,18 @@ class Grid {
   // interacting with the nearest vertex to the mouse).
   interaction(): Interaction | undefined {
     // Transform mouse coordinates into the puzzle's coord space
-    let transform = this.transform();
-    let local_x = (mouse_x - transform.dx) / transform.scale + this.puzzle.width / 2;
-    let local_y = (mouse_y - transform.dy) / transform.scale + this.puzzle.height / 2;
+    let local_mouse = this.transform().inv().transform_point(mouse_x, mouse_y);
 
     let interaction = undefined;
     for (let vert_idx = 0; vert_idx < this.puzzle.verts.length; vert_idx++) {
       let { x: vert_x, y: vert_y } = this.puzzle.verts[vert_idx];
-      let dX = local_x - vert_x;
-      let dY = local_y - vert_y;
+      let dX = local_mouse.x - vert_x;
+      let dY = local_mouse.y - vert_y;
       let dist = Math.sqrt(dX * dX + dY * dY);
       if (interaction === undefined || dist < interaction.vert_distance) {
         interaction = {
-          local_x,
-          local_y,
+          local_x: local_mouse.x,
+          local_y: local_mouse.y,
           vert_idx,
           vert_distance: dist,
         };
@@ -408,35 +404,28 @@ class Grid {
 
   transform_from_state(state: TransformState): Transform {
     // Get the rectangle in which the puzzle has to fit
-    let rect = {
-      x: 0,
-      y: PUZZLE_HEADER_HEIGHT,
-      w: canvas.width,
-      h: canvas.height - PUZZLE_HEADER_HEIGHT,
-    };
-    let scale_multiplier;
-    if (state === "overlay") {
-      scale_multiplier = game.overlay.tween.get();
-    } else if (state === "tiny") {
-      scale_multiplier = 0;
+    if (state === "overlay" || state === "tiny") {
+      // Transform is in the overlay, so fill the screen as best we can
+      let rect = {
+        x: 0,
+        y: PUZZLE_HEADER_HEIGHT,
+        w: canvas.width,
+        h: canvas.height - PUZZLE_HEADER_HEIGHT,
+      };
+      const puzzle_width = this.puzzle.grid_width + 0.5 * 2;
+      const puzzle_height = this.puzzle.grid_height + 0.5 * 2;
+      let scale_to_fill = Math.min(rect.w / puzzle_width, rect.h / puzzle_height);
+      let scale_multiplier = (state === "overlay") ? game.overlay.tween.get() : 0;
+      return new Transform()
+        .then_translate(-this.puzzle.grid_width / 2, -this.puzzle.grid_height / 2)
+        .then_scale(scale_to_fill * scale_multiplier)
+        .then_translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
     } else {
-      let { x, y } = game.camera_transform().transform_point(
-        this.puzzle.pos.x + state.grid_idx - this.puzzle.num_solutions / 2,
-        this.puzzle.pos.y - 0.5,
-      );
-      rect = { x, y, w: PUZZLE_WORLD_SCALE, h: PUZZLE_WORLD_SCALE };
-      scale_multiplier = state.faded ? 0 : 1;
+      // Transform is in puzzle world
+      let transform = this.puzzle.grid_transform(state.grid_idx);
+      if (state.faded) transform.scale = 0;
+      return transform.then(game.camera_transform());
     }
-
-    // Scale the puzzle to fill the given `rect`, with 0.5 cells of padding on every side
-    const puzzle_width = this.puzzle.width + 0.5 * 2;
-    const puzzle_height = this.puzzle.height + 0.5 * 2;
-    let scale_to_fill = Math.min(rect.w / puzzle_width, rect.h / puzzle_height);
-    return new Transform(
-      rect.x + rect.w / 2,
-      rect.y + rect.h / 2,
-      scale_to_fill * scale_multiplier,
-    );
   }
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {

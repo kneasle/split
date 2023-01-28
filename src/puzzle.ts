@@ -3,14 +3,16 @@
 /// Abstract representation of a `Puzzle`, without any attached lines or solution
 class Puzzle {
   pos: Vec2;
-  num_solutions: number;
   solved_grids: Grid[];
-  width: number;
-  height: number;
+  box: PuzzleBox;
 
   verts: Vec2[];
   edges: { v1: number; v2: number }[];
   cells: Cell[];
+
+  num_solutions: number;
+  grid_width: number;
+  grid_height: number;
 
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
     /* Values used by the rest of the game */
@@ -97,8 +99,20 @@ class Puzzle {
       v.y -= min.y;
     }
     // Store width and height of this puzzle's bounding box
-    this.width = max.x - min.x;
-    this.height = max.y - min.y;
+    this.grid_width = max.x - min.x;
+    this.grid_height = max.y - min.y;
+
+    // Compute box and grid scales
+    let total_grid_width = (this.grid_width + 1) * this.num_solutions;
+    let total_grid_height = this.grid_height + 1;
+    let grid_scale = Math.min(
+      PUZZLE_BOX_MAX_WIDTH / total_grid_width, // scale to fill width
+      PUZZLE_BOX_MAX_HEIGHT / total_grid_height, // scale to fill height
+    );
+    this.box = {
+      width: total_grid_width * grid_scale,
+      grid_scale,
+    };
   }
 
   get_solution(line: number[]): Solution {
@@ -222,7 +236,30 @@ class Puzzle {
     }
     return undefined;
   }
+
+  grid_transform(soln_number: number): Transform {
+    let centre_x = this.pos.x +
+      (soln_number - this.num_solutions / 2 + 1 / 2) * (this.box.width / this.num_solutions);
+    let centre_y = this.pos.y;
+    return new Transform()
+      .then_translate(-this.grid_width / 2, -this.grid_height / 2)
+      .then_scale(this.box.grid_scale)
+      .then_translate(centre_x, centre_y);
+  }
+
+  overall_rect(): Rect {
+    let width = this.box.width;
+    let height = PUZZLE_BOX_MAX_HEIGHT;
+    let x = this.pos.x - width / 2;
+    let y = this.pos.y - height / 2;
+    return { x, y, w: width, h: height };
+  }
 }
+
+type PuzzleBox = {
+  width: number;
+  grid_scale: number;
+};
 
 type Cell = {
   verts: number[];
