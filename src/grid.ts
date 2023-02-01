@@ -1,4 +1,4 @@
-/// An instance of a `Puzzle` on the screen
+/// An instance of a puzzle grid on the screen
 class Grid {
   puzzle: Puzzle;
   pips: Pip[];
@@ -113,7 +113,8 @@ class Grid {
 
     // Check the user's solution
     const is_line_loop = this.line_path.length > 1 &&
-      this.line_path[0] === this.line_path[this.line_path.length - 1];
+      this.line_path[0] === this.line_path[this.line_path.length - 1] &&
+      this.ideal_line.disp_length === this.ideal_line.path.length - 1;
     if (!is_line_loop) {
       if (this.ideal_line.disp_length < MIN_LINE_LENGTH_TO_KEEP) {
         this.ideal_line = { path: [], disp_length: 0, was_short_line: true };
@@ -121,12 +122,6 @@ class Grid {
       return; // Can't solve the puzzle if the line doesn't form a loop
     }
     this.solution = this.puzzle.get_solution(this.line_path);
-    // Once the puzzle is solved, display an exactly full line
-    this.ideal_line = {
-      path: [...this.line_path],
-      disp_length: this.line_path.length,
-      was_short_line: false,
-    };
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
@@ -312,6 +307,25 @@ class Grid {
       disp_length: ideal_line_path.length - 1 - lerp_factor,
       was_short_line: false,
     };
+
+    // If the line is close to becoming a loop, snap the line to close the loop.
+    let path_len = this.ideal_line.path.length;
+    // Case 1: Line is slightly too short
+    if (
+      path_len > 1 && this.ideal_line.path[path_len - 1] === this.ideal_line.path[0] && // Is a loop
+      this.ideal_line.disp_length % 1 > 1 - LOOP_CLOSE_SNAP_DISTANCE // Is close enough to vertex
+    ) {
+      this.ideal_line.disp_length = Math.ceil(this.ideal_line.disp_length);
+    }
+    // Case 2: Line is slightly too long
+    if (
+      path_len > 2 && this.ideal_line.path[path_len - 2] === this.ideal_line.path[0] && // Is a loop
+      this.ideal_line.disp_length % 1 < LOOP_CLOSE_SNAP_DISTANCE // Is close enough to vertex
+    ) {
+      this.ideal_line.disp_length = Math.floor(this.ideal_line.disp_length);
+      this.ideal_line.path.pop();
+      console.assert(this.ideal_line.disp_length === this.ideal_line.path.length - 1);
+    }
   }
 
   update_display_line(time_delta: number): void {

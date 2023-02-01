@@ -23,6 +23,7 @@ const MIN_LINE_LERP_SPEED = 3000; // Pixels/second
 // Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
 const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
+const LOOP_CLOSE_SNAP_DISTANCE = 0.4; // Edges; distance at which a line will be snapped to complete a loop
 // Display
 const PUZZLE_BOX_MAX_WIDTH = 4;
 const PUZZLE_BOX_MAX_HEIGHT = 1;
