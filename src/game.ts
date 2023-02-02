@@ -247,98 +247,98 @@ let _puzzles = [
   { num_solutions: 1, pattern: "11" },
   { num_solutions: 1, pattern: "211" },
   { num_solutions: 1, pattern: "123" },
-  { num_solutions: 1, pattern: "21|1 " },
+  { num_solutions: 1, pattern: "21|1." },
   { num_solutions: 1, pattern: "111" },
   { num_solutions: 2, pattern: "2112" },
   { num_solutions: 2, pattern: "11|11" },
-  { num_solutions: 1, pattern: "11|1 " },
-  { num_solutions: 2, pattern: " 1 |1 1| 1 " },
+  { num_solutions: 1, pattern: "11|1." },
+  { num_solutions: 2, pattern: ".1.|1.1|.1." },
   { num_solutions: 3, pattern: "111|111" },
   { num_solutions: 2, pattern: "111|111|111" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: "21|12" },
-  { num_solutions: 2, pattern: "21 |12 |   " },
-  { num_solutions: 1, pattern: "21 |12 |  2" },
-  { num_solutions: 2, pattern: "21  |12  |  2 |    " },
-  { num_solutions: 2, pattern: "21  |12  |    |   2" },
+  { num_solutions: 2, pattern: "21.|12.|..." },
+  { num_solutions: 1, pattern: "21.|12.|..2" },
+  { num_solutions: 2, pattern: "21..|12..|..2.|...." },
+  { num_solutions: 2, pattern: "21..|12..|....|...2" },
 
   // Cool set of puzzles
   // TODO: Do this whole set as 1+2=3 rather than 1+1=2
   // TODO: Prune this down a bit
   { num_solutions: 1, pattern: "21|12" }, // TODO: This is a duplicate
-  { num_solutions: 2, pattern: "2 1|1 2" },
-  { num_solutions: 2, pattern: "2 2|1 1" },
-  { num_solutions: 2, pattern: "   |2 2|1 1" },
-  { num_solutions: 2, pattern: "2 2|   |1 1" },
-  { num_solutions: 2, pattern: "  2| 2 |1 1" },
-  { num_solutions: 2, pattern: "  2|12 |  1" },
-  { num_solutions: 2, pattern: "2 2|1  |  1" },
-  { num_solutions: 2, pattern: "22 |1  |  1" },
-  { num_solutions: 2, pattern: "222|1  |  1" },
-  { num_solutions: 2, pattern: "222|1 1|   " },
+  { num_solutions: 2, pattern: "2.1|1.2" },
+  { num_solutions: 2, pattern: "2.2|1.1" },
+  { num_solutions: 2, pattern: "...|2.2|1.1" },
+  { num_solutions: 2, pattern: "2.2|...|1.1" },
+  { num_solutions: 2, pattern: "..2|.2.|1.1" },
+  { num_solutions: 2, pattern: "..2|12.|..1" },
+  { num_solutions: 2, pattern: "2.2|1..|..1" },
+  { num_solutions: 2, pattern: "22.|1..|..1" },
+  { num_solutions: 2, pattern: "222|1..|..1" },
+  { num_solutions: 2, pattern: "222|1.1|..." },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: " 31|31 |1  " },
-  { num_solutions: 2, pattern: "331|31 |1  " },
-  { num_solutions: 3, pattern: " 31|31 |1 3" },
-  { num_solutions: 2, pattern: " 31|33 |1 1" },
+  { num_solutions: 1, pattern: ".31|31.|1.." },
+  { num_solutions: 2, pattern: "331|31.|1.." },
+  { num_solutions: 3, pattern: ".31|31.|1.3" },
+  { num_solutions: 2, pattern: ".31|33.|1.1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "123|2 1" },
-  { num_solutions: 1, pattern: " 2 |1 3|2 1" },
-  { num_solutions: 1, pattern: " 1 |2 3|2 1" },
+  { num_solutions: 1, pattern: "123|2.1" },
+  { num_solutions: 1, pattern: ".2.|1.3|2.1" },
+  { num_solutions: 1, pattern: ".1.|2.3|2.1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "1 1|2 2|1 1" },
-  { num_solutions: 2, pattern: "   |1 1|2 2|1 1" },
+  { num_solutions: 1, pattern: "1.1|2.2|1.1" },
+  { num_solutions: 2, pattern: "...|1.1|2.2|1.1" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: "21|21" },
-  { num_solutions: 1, pattern: " 21| 21" },
-  { num_solutions: 2, pattern: "221|  1" },
+  { num_solutions: 1, pattern: ".21|.21" },
+  { num_solutions: 2, pattern: "221|..1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: " 2 | 2 | 2 " },
-  { num_solutions: 2, pattern: " 2 | 2 |1 1" },
-  { num_solutions: 2, pattern: "1 1| 2 |1 1" },
-  { num_solutions: 2, pattern: "1 1|  2|1 1" },
-  { num_solutions: 2, pattern: "1 1|1 2|  1" },
+  { num_solutions: 1, pattern: ".2.|.2.|.2." },
+  { num_solutions: 2, pattern: ".2.|.2.|1.1" },
+  { num_solutions: 2, pattern: "1.1|.2.|1.1" },
+  { num_solutions: 2, pattern: "1.1|..2|1.1" },
+  { num_solutions: 2, pattern: "1.1|1.2|..1" },
 
   // Cool set of puzzles
-  { num_solutions: 2, pattern: "  2|2  |11 " },
-  { num_solutions: 2, pattern: "  2|   |112" },
-  { num_solutions: 2, pattern: "  2|   |112" },
-  { num_solutions: 2, pattern: "2 2|   |112" },
-  { num_solutions: 2, pattern: "2 2|   |121" },
+  { num_solutions: 2, pattern: "..2|2..|11." },
+  { num_solutions: 2, pattern: "..2|...|112" },
+  { num_solutions: 2, pattern: "..2|...|112" },
+  { num_solutions: 2, pattern: "2.2|...|112" },
+  { num_solutions: 2, pattern: "2.2|...|121" },
 
   // Cool set of puzzles
-  { num_solutions: 2, pattern: "313|   |131" },
-  { num_solutions: 3, pattern: "113|   |331" },
-  { num_solutions: 3, pattern: "111|   |333" },
-  { num_solutions: 2, pattern: "131|   |331" },
+  { num_solutions: 2, pattern: "313|...|131" },
+  { num_solutions: 3, pattern: "113|...|331" },
+  { num_solutions: 3, pattern: "111|...|333" },
+  { num_solutions: 2, pattern: "131|...|331" },
 
   // Twizzly puzzles
-  { num_solutions: 1, pattern: "1  3|  5 |    |  4 |2   " }, // TODO: Rotate?
-  { num_solutions: 1, pattern: "1   3| 2   |   4 |5   6" },
-  { num_solutions: 1, pattern: "1   3| 4   |   2 |5   6" },
+  { num_solutions: 1, pattern: "1..3|..5.|....|.4..|2..." },
+  { num_solutions: 1, pattern: "1...3|.2...|...4.|5...6" },
+  { num_solutions: 1, pattern: "1...3|.4...|...2.|5...6" },
 
   // Puzzles looking for sets
-  { num_solutions: 2, pattern: "1 2| 2 |  1" },
+  { num_solutions: 2, pattern: "1.2|.2.|..1" },
 
   // Misc puzzles
   { num_solutions: 1, pattern: "1 2 |3 4 |    " },
   { num_solutions: 1, pattern: "1 2|34 |   " },
-  { num_solutions: 2, pattern: "121|2 2|121" },
-  { num_solutions: 2, pattern: " 33|   |114" },
-  { num_solutions: 3, pattern: " 1 |1 1|111" },
-  { num_solutions: 2, pattern: "     |12 21" },
+  { num_solutions: 2, pattern: "121|2.2|121" },
+  { num_solutions: 2, pattern: ".33|...|114" },
+  { num_solutions: 3, pattern: ".1.|1.1|111" },
+  { num_solutions: 2, pattern: ".....|12.21" },
   { num_solutions: 1, pattern: "111|181|111" },
-  { num_solutions: 3, pattern: "1 41|4   |   4|14 1" },
-  { num_solutions: 4, pattern: "2  2| 11 | 11 |2  2" },
+  { num_solutions: 3, pattern: "1.41|4...|...4|14.1" },
+  { num_solutions: 4, pattern: "2..2|.11.|.11.|2..2" },
   { num_solutions: 4, pattern: "4224|2112|2112|4224" },
-  { num_solutions: 1, pattern: "2 1 2|     |1 2 1|    |2 1 2" },
-  { num_solutions: 3, pattern: "2 1 2|     |1 2 1|  2 |2 1 2" },
+  { num_solutions: 1, pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
+  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
 ];
 let idx = 0;
 let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) =>
