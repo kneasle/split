@@ -4,19 +4,19 @@
 class Game {
   /* Puzzle world */
   camera_pos: Vec2;
-  puzzles: Puzzle[];
+  puzzle_sets: PuzzleSet[];
   fading_grids: Grid[];
   /* Puzzle overlay */
   overlay: Overlay;
 
-  constructor(puzzles: Puzzle[]) {
+  constructor(puzzle_sets: PuzzleSet[]) {
     // Puzzle world
     this.camera_pos = { x: 0, y: 0 };
-    this.puzzles = puzzles;
+    this.puzzle_sets = puzzle_sets;
     this.fading_grids = [];
     // Overlay
     this.overlay = {
-      grid: new Grid(puzzles[0], "overlay"),
+      grid: new Grid(puzzle_sets[0].puzzle, "overlay"),
       puzzle_idx: 0,
       tween: new Tween(0, OVERLAY_ANIMATION_TIME, lerp),
       should_close: false,
@@ -33,7 +33,7 @@ class Game {
     // Trigger adding the solution on the overlay grid to puzzle scene
     if (this.overlay.grid.is_ready_to_be_stashed()) {
       let { grid, puzzle_idx } = this.overlay;
-      let solved_grids = this.puzzles[puzzle_idx].solved_grids;
+      let solved_grids = this.puzzle_sets[puzzle_idx].solved_grids;
       const pip_group_size = grid.solution!.pip_group_size;
       // Decide where the new grid should go to keep the grids sorted by solution
       let idx_of_solved_grid = 0;
@@ -47,7 +47,11 @@ class Game {
       // Add the new grid, replacing an existing grid if that grid has the same count
       let i = idx_of_solved_grid;
       if (solved_grids[i] && solved_grids[i].solution!.pip_group_size === pip_group_size) {
-        solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: true });
+        solved_grids[i].transform_tween.animate_to(
+          new Transform()
+            .then_scale(0)
+            .then(this.puzzle_sets[puzzle_idx].grid_transform(i)),
+        );
         this.fading_grids.push(solved_grids[i]);
         solved_grids[i] = grid;
       } else {
@@ -55,10 +59,10 @@ class Game {
       }
       // Animate all the puzzle's grids to their new positions
       for (let i = 0; i < solved_grids.length; i++) {
-        solved_grids[i].transform_tween.animate_to({ puzzle_idx, grid_idx: i, faded: false });
+        solved_grids[i].transform_tween.animate_to(this.puzzle_sets[puzzle_idx].grid_transform(i));
       }
       // Create a new main grid to replace the old one, and immediately start an animation
-      this.overlay.grid = new Grid(this.puzzles[puzzle_idx], "tiny");
+      this.overlay.grid = new Grid(this.puzzle_sets[puzzle_idx].puzzle, "tiny");
       if (!this.overlay.should_close) {
         this.overlay.grid.transform_tween.animate_to("overlay");
       }
@@ -82,17 +86,18 @@ class Game {
     /* PUZZLE WORLD */
     let camera_transform = this.camera_transform();
     // Puzzles
-    for (let i = 0; i < this.puzzles.length; i++) {
-      let puzzle = this.puzzles[i];
+    for (let i = 0; i < this.puzzle_sets.length; i++) {
+      let puzzle_set = this.puzzle_sets[i];
+      let puzzle = puzzle_set.puzzle;
       let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
-      let rect = camera_transform.transform_rect(puzzle.overall_rect());
+      let rect = camera_transform.transform_rect(puzzle_set.overall_rect());
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
       // Boxes for solved grids
       let grid_rect: Rect = { x: 0, y: 0, w: puzzle.grid_width, h: puzzle.grid_height };
       for (let i = 0; i < num_solutions; i++) {
-        let r = puzzle.grid_transform(i).then(camera_transform).transform_rect(grid_rect);
+        let r = puzzle_set.grid_transform(i).then(camera_transform).transform_rect(grid_rect);
         ctx.strokeRect(r.x, r.y, r.w, r.h);
       }
       // Puzzle Number
@@ -104,7 +109,7 @@ class Game {
     }
     // Grids
     let grids = [];
-    for (const p of this.puzzles) {
+    for (const p of this.puzzle_sets) {
       for (const g of p.solved_grids) {
         grids.push(g);
       }
@@ -133,7 +138,7 @@ class Game {
       .then_scale(PUZZLE_WORLD_SCALE)
       .then_translate(canvas.width / 2, canvas.height / 2);
 
-    let current_puzzle = this.puzzles[this.overlay.puzzle_idx];
+    let current_puzzle = this.puzzle_sets[this.overlay.puzzle_idx];
     let pure_overlay_transform = new Transform()
       .then_translate(-current_puzzle.pos.x, -current_puzzle.pos.y)
       .then_scale(PUZZLE_WORLD_SCALE)
@@ -172,12 +177,12 @@ class Game {
     if (this.overlay_fully_off()) {
       // No overlay grid means we should be interacting with the puzzle world
       let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
-      for (let i = 0; i < this.puzzles.length; i++) {
-        let r = puzzles[i].overall_rect();
+      for (let i = 0; i < this.puzzle_sets.length; i++) {
+        let r = puzzle_sets[i].overall_rect();
         if (x < r.x || x > r.x + r.w) continue;
         if (y < r.y || y > r.y + r.h) continue;
         // Mouse is within this puzzle's rect, so open it as a puzzle
-        this.overlay.grid = new Grid(puzzles[i], "overlay");
+        this.overlay.grid = new Grid(puzzle_sets[i].puzzle, "overlay");
         this.overlay.puzzle_idx = i;
         this.overlay.tween.animate_to(1);
       }
@@ -341,10 +346,10 @@ let _puzzles = [
   { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" }, // TODO: Is this one interesting?
 ];
 let idx = 0;
-let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) =>
-  new Puzzle(pattern, 0, idx++, num_solutions)
+let puzzle_sets: PuzzleSet[] = _puzzles.map(
+  ({ pattern, num_solutions }) => new PuzzleSet(pattern, 0, idx++, num_solutions),
 );
-const game = new Game(puzzles);
+const game = new Game(puzzle_sets);
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;

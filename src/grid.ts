@@ -436,8 +436,7 @@ class Grid {
         .then_translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
     } else {
       // Transform is in puzzle world
-      let transform = this.puzzle.grid_transform(state.grid_idx);
-      if (state.faded) transform.scale = 0;
+      let transform = state;
       return transform.then(game.camera_transform());
     }
   }
@@ -470,10 +469,13 @@ class Grid {
   }
 }
 
-type TransformState = "tiny" | "overlay" | { puzzle_idx: number; grid_idx: number; faded: boolean };
+type TransformState =
+  | "tiny"
+  | "overlay"
+  | Transform; // Grid is in puzzle world
 
 function is_faded(s: TransformState): boolean {
-  if (typeof s === "object") return s.faded;
+  if (typeof s === "object") return s.scale === 0;
   else return false;
 }
 
