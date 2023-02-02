@@ -293,11 +293,11 @@ let _puzzles = [
   { num_solutions: 2, pattern: "131|...|331" },
 
   // 5,5,5 twizzly puzzles
-  { num_solutions: 1, pattern: "21.|345" },
+  // { num_solutions: 1, pattern: "21.|345" },
   { num_solutions: 1, pattern: "23|5.|41" },
   { num_solutions: 1, pattern: "15|.4|23" },
   { num_solutions: 1, pattern: "451|...|2.3" },
-  { num_solutions: 1, pattern: "3.5.2|1...4|....." },
+  { num_solutions: 1, pattern: ".....|1...4|3.5.2" },
   { num_solutions: 1, pattern: "1..2.|3..4.|5...." },
   { num_solutions: 1, pattern: "1..3|..5.|....|..4.|2..." },
   { num_solutions: 1, pattern: "1...4|2.5.3|.....|....." },
@@ -326,8 +326,8 @@ let _puzzles = [
   { num_solutions: 1, pattern: "62..|2.3.|.32.|...." },
   { num_solutions: 1, pattern: "62..|2.3.|.32.|...6" },
   { num_solutions: 1, pattern: ".....|..2..|..6..|32.23" },
-  { num_solutions: 1, pattern: ".....|.6.3.|....2|...2.|4...3" },
-  { num_solutions: 2, pattern: ".....|.6.3.|....2|6..2.|4...3" },
+  { num_solutions: 1, pattern: ".....|.6.3.|....2|...2.|2...3" },
+  { num_solutions: 2, pattern: ".....|.6.3.|....2|6..2.|2...3" },
 
   // Puzzles looking for sets
   { num_solutions: 2, pattern: "1.2|.2.|..1" },
@@ -343,6 +343,11 @@ let _puzzles = [
   { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
   { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" }, // TODO: Is this one interesting?
 ];
+
+let total_solns_required = 0;
+_puzzles.forEach((p) => total_solns_required += p.num_solutions);
+console.log(`${_puzzles.length} puzzles, totalling ${total_solns_required} solutions`);
+
 let idx = 0;
 let puzzle_sets: PuzzleSet[] = _puzzles.map(
   ({ pattern, num_solutions }) => new PuzzleSet(pattern, 0, idx++, num_solutions),
