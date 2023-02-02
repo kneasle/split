@@ -296,7 +296,7 @@ let _puzzles = [
   { num_solutions: 1, pattern: "451|...|2.3" },
   { num_solutions: 1, pattern: "3.5.2|1...4|....." },
   { num_solutions: 1, pattern: "1..2.|3..4.|5...." },
-  { num_solutions: 1, pattern: "1..3|..5.|....|.4..|2..." },
+  { num_solutions: 1, pattern: "1..3|..5.|....|..4.|2..." },
   { num_solutions: 1, pattern: "1...4|2.5.3|.....|....." },
   { num_solutions: 2, pattern: "1...4|2.5.3|..5..|....." },
   // 7,7,7 twizzly puzzles
@@ -319,12 +319,11 @@ let _puzzles = [
 
   // Puzzles looking for sets
   { num_solutions: 2, pattern: "1.2|.2.|..1" },
-
-  // Misc puzzles
   { num_solutions: 2, pattern: "121|2.2|121" },
   { num_solutions: 2, pattern: ".33|...|114" },
   { num_solutions: 3, pattern: ".1.|1.1|111" },
   { num_solutions: 2, pattern: ".....|12.21" },
+  { num_solutions: 2, pattern: "32..|..11|323." },
   { num_solutions: 3, pattern: "1.41|4...|...4|14.1" },
   { num_solutions: 4, pattern: "2..2|.11.|.11.|2..2" },
   { num_solutions: 4, pattern: "4224|2112|2112|4224" },
