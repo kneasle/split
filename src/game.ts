@@ -152,7 +152,7 @@ class Game {
       this.overlay.grid.on_mouse_move();
     }
 
-    if (this.overlay_fully_off()) {
+    if (!this.overlay_fully_on()) {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
         this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
@@ -161,7 +161,8 @@ class Game {
   }
 
   on_mouse_down(): void {
-    if (!this.overlay_fully_off()) {
+    let is_overlay_tweening_in = this.overlay.tween.target === 1;
+    if (!this.overlay_fully_off() && is_overlay_tweening_in) {
       // TODO: Don't allow drawing lines while the overlay is tweening in?
       const was_click_registered = this.overlay.grid.on_mouse_down();
       if (!was_click_registered) {
