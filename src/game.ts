@@ -255,6 +255,7 @@ let _puzzles = [
   { num_solutions: 2, pattern: ".1.|1.1|.1." },
   { num_solutions: 3, pattern: "111|111" },
   { num_solutions: 2, pattern: "111|111|111" },
+  { num_solutions: 1, pattern: "111|181|111" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: "21|12" },
@@ -350,18 +351,16 @@ let _puzzles = [
   { num_solutions: 2, pattern: "1.2|.2.|..1" },
 
   // Misc puzzles
-  { num_solutions: 1, pattern: "1 2 |3 4 |    " },
-  { num_solutions: 1, pattern: "1 2|34 |   " },
   { num_solutions: 2, pattern: "121|2.2|121" },
   { num_solutions: 2, pattern: ".33|...|114" },
   { num_solutions: 3, pattern: ".1.|1.1|111" },
   { num_solutions: 2, pattern: ".....|12.21" },
-  { num_solutions: 1, pattern: "111|181|111" },
   { num_solutions: 3, pattern: "1.41|4...|...4|14.1" },
   { num_solutions: 4, pattern: "2..2|.11.|.11.|2..2" },
   { num_solutions: 4, pattern: "4224|2112|2112|4224" },
   { num_solutions: 1, pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
   { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
+  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" }, // TODO: Is this one interesting?
 ];
 let idx = 0;
 let puzzles: Puzzle[] = _puzzles.map(({ pattern, num_solutions }) =>
