@@ -48,9 +48,7 @@ class Game {
       let i = idx_of_solved_grid;
       if (solved_grids[i] && solved_grids[i].solution!.pip_group_size === pip_group_size) {
         solved_grids[i].transform_tween.animate_to(
-          new Transform()
-            .then_scale(0)
-            .then(this.puzzle_sets[puzzle_idx].grid_transform(i)),
+          Transform.scale(0).then(this.puzzle_sets[puzzle_idx].grid_transform(i)),
         );
         this.fading_grids.push(solved_grids[i]);
         solved_grids[i] = grid;

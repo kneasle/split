@@ -162,6 +162,14 @@ class Transform {
     this.dy = 0;
   }
 
+  static scale(scale: number): Transform {
+    return new Transform().then_scale(scale);
+  }
+
+  static translate(x: number, y: number): Transform {
+    return new Transform().then_translate(x, y);
+  }
+
   then(other: Transform): Transform {
     return this.then_scale(other.scale).then_translate(other.dx, other.dy);
   }
@@ -183,9 +191,7 @@ class Transform {
   }
 
   inv(): Transform {
-    return new Transform()
-      .then_translate(-this.dx, -this.dy)
-      .then_scale(1 / this.scale);
+    return Transform.translate(-this.dx, -this.dy).then_scale(1 / this.scale);
   }
 
   transform_point(x: number, y: number): Vec2 {
