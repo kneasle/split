@@ -3,7 +3,7 @@
 /// Singleton instance which handles all top-level game logic
 class Game {
   /* Puzzle world */
-  camera_pos: Vec2;
+  puzzle_world_transform: Transform;
   puzzle_sets: PuzzleSet[];
   fading_grids: Grid[];
   /* Puzzle overlay */
@@ -11,7 +11,7 @@ class Game {
 
   constructor(puzzle_sets: PuzzleSet[]) {
     // Puzzle world
-    this.camera_pos = { x: 0, y: 0 };
+    this.puzzle_world_transform = Transform.scale(DEFAULT_ZOOM);
     this.puzzle_sets = puzzle_sets;
     this.fading_grids = [];
     // Overlay
@@ -100,10 +100,10 @@ class Game {
       }
       // Puzzle Number
       ctx.fillStyle = "black";
-      ctx.font = "50px monospace";
+      ctx.font = `${Math.round(camera_transform.scale * PUZZLE_TEXT_SIZE)}px monospace`;
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillText(`#${i + 1}`, rect.x - 10, rect.y + rect.h / 2);
+      ctx.fillText(`#${i + 1}`, rect.x - camera_transform.scale * 0.1, rect.y + rect.h / 2);
     }
     // Grids
     let grids = [];
@@ -131,15 +131,14 @@ class Game {
   /* TRANSFORMS */
 
   camera_transform(): Transform {
-    let pure_camera_transform = new Transform()
-      .then_translate(-this.camera_pos.x, -this.camera_pos.y)
-      .then_scale(PUZZLE_WORLD_SCALE)
+    let pure_camera_transform = this
+      .puzzle_world_transform
       .then_translate(canvas.width / 2, canvas.height / 2);
 
     let current_puzzle = this.puzzle_sets[this.overlay.puzzle_idx];
     let pure_overlay_transform = new Transform()
       .then_translate(-current_puzzle.pos.x, -current_puzzle.pos.y)
-      .then_scale(PUZZLE_WORLD_SCALE)
+      .then_scale(DEFAULT_ZOOM)
       .then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
 
     let overlay_factor = this.overlay.tween.get();
@@ -156,9 +155,7 @@ class Game {
     if (this.overlay_fully_off()) {
       // No overlay grid means we should be interacting with the puzzle world
       if (mouse_button) {
-        let { scale } = this.camera_transform();
-        this.camera_pos.x -= dx / scale;
-        this.camera_pos.y -= dy / scale;
+        this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
       }
     }
   }
@@ -191,6 +188,16 @@ class Game {
     if (this.overlay_fully_on()) {
       this.overlay.grid.on_mouse_up();
     }
+  }
+
+  on_scroll(delta_y: number): void {
+    let desired_scale = this.puzzle_world_transform.scale;
+    desired_scale *= Math.pow(ZOOM_FACTOR, -delta_y); // Perform the zoom
+    desired_scale = Math.min(Math.max(desired_scale, MIN_ZOOM), MAX_ZOOM); // Clamp the zoom
+    // TODO: Zoom around the cursor's location
+    this.puzzle_world_transform = this
+      .puzzle_world_transform
+      .then_scale(desired_scale / this.puzzle_world_transform.scale);
   }
 
   overlay_fully_on(): boolean {
@@ -386,8 +393,16 @@ window.addEventListener("mouseup", (evt) => {
   update_mouse(evt);
   game.on_mouse_up();
 });
+window.addEventListener("wheel", (evt) => {
+  if (evt.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+    game.on_scroll(evt.deltaY);
+  } else if (evt.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    game.on_scroll(evt.deltaY / 120);
+  }
+  // DOM_DELTA_PAGE signals are ignored
+});
 
-function update_mouse(evt: MouseEvent) {
+function update_mouse(evt: MouseEvent): { dx: number; dy: number } {
   let new_mouse_x = evt.clientX * window.devicePixelRatio;
   let new_mouse_y = evt.clientY * window.devicePixelRatio;
   let dx = new_mouse_x - mouse_x;

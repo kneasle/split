@@ -20,12 +20,17 @@ const SOLVE_ANIMATION_TIME = 0.3; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 const LINE_LERP_SPEED_FACTOR = 6000; // Pixels/second per pixel
 const MIN_LINE_LERP_SPEED = 3000; // Pixels/second
-// Interaction
+// Camera Interaction
+const ZOOM_FACTOR = 1.002; // Factor multplied for every 'pixel' scrolled
+const MIN_ZOOM = 20;
+const MAX_ZOOM = 400;
+const DEFAULT_ZOOM = 100; // Pixels per puzzle world unit
+// Puzzle Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
 const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
 const LOOP_CLOSE_SNAP_DISTANCE = 0.4; // Edges; distance at which a line will be snapped to complete a loop
 // Display
 const PUZZLE_BOX_MAX_WIDTH = 4;
 const PUZZLE_BOX_MAX_HEIGHT = 1;
-const PUZZLE_WORLD_SCALE = 100; // Pixels
-const PUZZLE_HEADER_HEIGHT = PUZZLE_WORLD_SCALE * 1.2; // Pixels
+const PUZZLE_TEXT_SIZE = 0.5; // Puzzle world units
+const PUZZLE_HEADER_HEIGHT = DEFAULT_ZOOM * 1.2; // Pixels
