@@ -316,6 +316,15 @@ let _puzzles = [
   { num_solutions: 1, pattern: "1...|..53|..24|...." },
   { num_solutions: 1, pattern: ".....|..2..|..15.|.....|4...3" },
   { num_solutions: 2, pattern: "....5|..2..|..15.|.....|4...3" },
+  // 2+2+2,3+3,6 twizzly puzzles
+  { num_solutions: 1, pattern: "222|3.3" },
+  { num_solutions: 1, pattern: ".2.|.3.|232" },
+  { num_solutions: 1, pattern: "2.2|..3|236" },
+  { num_solutions: 1, pattern: "62..|2.3.|.32.|...." },
+  { num_solutions: 1, pattern: "62..|2.3.|.32.|...6" },
+  { num_solutions: 1, pattern: ".....|..2..|..6..|32.23" },
+  { num_solutions: 1, pattern: ".....|.6.3.|....2|...2.|4...3" },
+  { num_solutions: 2, pattern: ".....|.6.3.|....2|6..2.|4...3" },
 
   // Puzzles looking for sets
   { num_solutions: 2, pattern: "1.2|.2.|..1" },
