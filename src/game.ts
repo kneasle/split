@@ -318,10 +318,33 @@ let _puzzles = [
   { num_solutions: 3, pattern: "111|...|333" },
   { num_solutions: 2, pattern: "131|...|331" },
 
-  // Twizzly puzzles
+  // 5,5,5 twizzly puzzles
+  { num_solutions: 1, pattern: "21.|345" },
+  { num_solutions: 1, pattern: "23|5.|41" },
+  { num_solutions: 1, pattern: "15|.4|23" },
+  { num_solutions: 1, pattern: "451|...|2.3" },
+  { num_solutions: 1, pattern: "3.5.2|1...4|....." },
+  { num_solutions: 1, pattern: "1..2.|3..4.|5...." },
   { num_solutions: 1, pattern: "1..3|..5.|....|.4..|2..." },
+  { num_solutions: 1, pattern: "1...4|2.5.3|.....|....." },
+  { num_solutions: 2, pattern: "1...4|2.5.3|..5..|....." },
+  // 7,7,7 twizzly puzzles
+  { num_solutions: 1, pattern: "321|456" },
+  { num_solutions: 1, pattern: "34|16|52" },
+  { num_solutions: 1, pattern: "351|...|426" },
+  { num_solutions: 1, pattern: "352|...|164" },
+  { num_solutions: 1, pattern: "342|...|165" },
+  { num_solutions: 1, pattern: "4.1|5..|..6|2.3" },
   { num_solutions: 1, pattern: "1...3|.2...|...4.|5...6" },
   { num_solutions: 1, pattern: "1...3|.4...|...2.|5...6" },
+  // 3,3,3 or 5,5,5 extra twizzly puzzles
+  // { num_solutions: 1, pattern: "3.|12|21" },
+  { num_solutions: 1, pattern: "3.|22|11" },
+  { num_solutions: 1, pattern: "...|.31|.22|..1" },
+  { num_solutions: 1, pattern: "1...|..31|..22|...." },
+  { num_solutions: 1, pattern: "1...|..53|..24|...." },
+  { num_solutions: 1, pattern: ".....|..2..|..15.|.....|4...3" },
+  { num_solutions: 2, pattern: "....5|..2..|..15.|.....|4...3" },
 
   // Puzzles looking for sets
   { num_solutions: 2, pattern: "1.2|.2.|..1" },
