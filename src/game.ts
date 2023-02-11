@@ -398,7 +398,7 @@ window.addEventListener("wheel", (evt) => {
   if (evt.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
     game.on_scroll(evt.deltaY);
   } else if (evt.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    game.on_scroll(evt.deltaY / 120);
+    game.on_scroll(evt.deltaY * 20);
   }
   // DOM_DELTA_PAGE signals are ignored
 });
