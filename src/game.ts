@@ -347,9 +347,9 @@ let _puzzles = [
   { num_solutions: 3, pattern: "1.41|4...|...4|14.1" },
   { num_solutions: 4, pattern: "2..2|.11.|.11.|2..2" },
   { num_solutions: 4, pattern: "4224|2112|2112|4224" },
-  { num_solutions: 1, pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
+  { num_solutions: 2, pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
+  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" },
   { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
-  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" }, // TODO: Is this one interesting?
 ];
 
 let total_solns_required = 0;
