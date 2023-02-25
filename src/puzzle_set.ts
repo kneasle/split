@@ -19,6 +19,7 @@ class PuzzleSet {
     );
     this.box = {
       width: total_grid_width * grid_scale,
+      height: PUZZLE_BOX_MAX_HEIGHT, // Puzzles always take up max height
       grid_scale,
     };
 
@@ -41,7 +42,7 @@ class PuzzleSet {
 
   overall_rect(): Rect {
     let width = this.box.width;
-    let height = PUZZLE_BOX_MAX_HEIGHT;
+    let height = this.box.height;
     let x = this.pos.x - width / 2;
     let y = this.pos.y - height / 2;
     return { x, y, w: width, h: height };
@@ -50,5 +51,6 @@ class PuzzleSet {
 
 type PuzzleBox = {
   width: number;
+  height: number;
   grid_scale: number;
 };

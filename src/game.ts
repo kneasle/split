@@ -7,11 +7,19 @@ class Game {
   puzzle_sets: PuzzleSet[];
   fading_grids: Grid[];
 
+  focussed_puzzle_tween: Tween<number | undefined>;
+
   constructor(puzzle_sets: PuzzleSet[]) {
     // Puzzle world
     this.puzzle_world_transform = Transform.scale(DEFAULT_ZOOM);
     this.puzzle_sets = puzzle_sets;
     this.fading_grids = [];
+
+    this.focussed_puzzle_tween = new Tween<number | undefined>(
+      undefined, // Start with no puzzle in focus
+      PUZZLE_FOCUS_TIME,
+      (a, b, t) => t >= 1 ? b : a,
+    );
   }
 
   update(_time_delta: number): void {
@@ -128,35 +136,56 @@ class Game {
   /* TRANSFORMS */
 
   camera_transform(): Transform {
-    return this
-      .puzzle_world_transform
-      .then_translate(canvas.width / 2, canvas.height / 2);
+    let focus_transform = (puzzle_idx: number | undefined): Transform => {
+      if (puzzle_idx === undefined) return this.puzzle_world_transform;
+
+      let puzzle = this.puzzle_sets[puzzle_idx];
+      let scale = Math.min(
+        (1 - FOCUS_BORDER_HORIZONTAL * 2) * canvas.width / puzzle.box.width, // Scale to fill width
+        (1 - FOCUS_BORDER_VERTICAL * 2) * canvas.height / puzzle.box.height, // Scale to fill height
+      );
+      return Transform.translate(0, -puzzle_idx).then_scale(scale);
+    };
+
+    return this.focussed_puzzle_tween.get_with_lerp_fn((a, b, t) =>
+      Transform
+        .lerp(focus_transform(a), focus_transform(b), t)
+        .then_translate(canvas.width / 2, canvas.height / 2)
+    );
   }
 
   /* INTERACTION */
 
   on_mouse_move(dx: number, dy: number): void {
-    // No overlay grid means we should be interacting with the puzzle world
-    if (mouse_button) {
-      this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
+    if (this.is_fully_unfocussed()) {
+      if (mouse_button) {
+        this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
+      }
     }
   }
 
   on_mouse_down(): void {
-    // No overlay grid means we should be interacting with the puzzle world
+    // TODO: If a puzzle will capture this click, don't use it to change the puzzle
+
+    // If no puzzle captures this input, use it to refocus
+    this.refocus_to_puzzle_under_cursor();
+  }
+
+  refocus_to_puzzle_under_cursor(): void {
+    if (this.focussed_puzzle_tween.is_animating()) return; // Don't refocus puzzles while animating
+
+    // If we click on a puzzle, move it to focus regardless if there's already a puzzle focussed
     let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       let r = puzzle_sets[i].overall_rect();
       if (x < r.x || x > r.x + r.w) continue;
       if (y < r.y || y > r.y + r.h) continue;
       // Mouse is within this puzzle's rect, so open it as a puzzle
-      console.log(`Clicked on puzzle #${i}`);
-      /*
-      this.overlay.grid = new Grid(puzzle_sets[i].puzzle, "overlay");
-      this.overlay.puzzle_idx = i;
-      this.overlay.tween.animate_to(1);
-      */
+      this.focussed_puzzle_tween.animate_to(i);
+      return;
     }
+    // If the click wasn't on any puzzles, then lose focus on the current puzzle
+    this.focussed_puzzle_tween.animate_to(undefined);
   }
 
   on_mouse_up(): void {
@@ -164,6 +193,8 @@ class Game {
   }
 
   on_scroll(delta_y: number): void {
+    if (!this.is_fully_unfocussed()) return;
+
     let desired_scale = this.puzzle_world_transform.scale;
     desired_scale *= Math.pow(ZOOM_FACTOR, -delta_y); // Perform the zoom
     desired_scale = Math.min(Math.max(desired_scale, MIN_ZOOM), MAX_ZOOM); // Clamp the zoom
@@ -171,6 +202,10 @@ class Game {
     this.puzzle_world_transform = this
       .puzzle_world_transform
       .then_scale(desired_scale / this.puzzle_world_transform.scale);
+  }
+
+  is_fully_unfocussed(): boolean {
+    return this.focussed_puzzle_tween.get() === undefined;
   }
 }
 
