@@ -1,7 +1,7 @@
 // A set of puzzle grids which share the same `Puzzle`
 class PuzzleSet {
   pos: Vec2;
-  solved_grids: Grid[];
+  grids: Grid[];
   box: PuzzleBox;
 
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
@@ -9,7 +9,6 @@ class PuzzleSet {
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
     this.pos = { x, y };
     this.puzzle = new Puzzle(pattern, num_solutions);
-    this.solved_grids = [];
 
     // Compute box and grid scales
     let total_grid_width = (this.puzzle.grid_width + 1) * this.puzzle.num_solutions;
@@ -22,6 +21,11 @@ class PuzzleSet {
       width: total_grid_width * grid_scale,
       grid_scale,
     };
+
+    this.grids = [];
+    for (let i = 0; i < this.puzzle.num_solutions; i++) {
+      this.grids.push(new Grid(this.puzzle, this.grid_transform(i)));
+    }
   }
 
   grid_transform(soln_number: number): Transform {

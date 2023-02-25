@@ -6,42 +6,35 @@ class Game {
   puzzle_world_transform: Transform;
   puzzle_sets: PuzzleSet[];
   fading_grids: Grid[];
-  /* Puzzle overlay */
-  overlay: Overlay;
 
   constructor(puzzle_sets: PuzzleSet[]) {
     // Puzzle world
     this.puzzle_world_transform = Transform.scale(DEFAULT_ZOOM);
     this.puzzle_sets = puzzle_sets;
     this.fading_grids = [];
-    // Overlay
-    this.overlay = {
-      grid: new Grid(puzzle_sets[0].puzzle, "overlay"),
-      puzzle_idx: 0,
-      tween: new Tween(0, OVERLAY_ANIMATION_TIME, lerp),
-      should_close: false,
-    };
   }
 
   update(_time_delta: number): void {
     // Remove any grids which have fully faded
+    /*
     retain(
       this.fading_grids,
       (grid) => !(is_faded(grid.transform_tween.target) && grid.transform_tween.is_complete()),
     );
+    */
 
     // Trigger adding the solution on the overlay grid to puzzle scene
+    /*
     if (this.overlay.grid.is_ready_to_be_stashed()) {
       let { grid, puzzle_idx } = this.overlay;
-      let solved_grids = this.puzzle_sets[puzzle_idx].solved_grids;
+      let solved_grids = this.puzzle_sets[puzzle_idx].grids;
       const pip_group_size = grid.solution!.pip_group_size;
       // Decide where the new grid should go to keep the grids sorted by solution
       let idx_of_solved_grid = 0;
       while (true) {
         if (idx_of_solved_grid === solved_grids.length) break;
-        if (solved_grids[idx_of_solved_grid].solution!.pip_group_size >= pip_group_size) {
-          break;
-        }
+        let solution = solved_grids[idx_of_solved_grid].solution;
+        if (solution && solution.pip_group_size >= pip_group_size) break;
         idx_of_solved_grid++;
       }
       // Add the new grid, replacing an existing grid if that grid has the same count
@@ -65,7 +58,9 @@ class Game {
         this.overlay.grid.transform_tween.animate_to("overlay");
       }
     }
+    */
 
+    /*
     // If the grid is playing its solve animation, delay any close requests until the animation is
     // complete
     const is_waiting_for_solve_animation = this.overlay.grid.is_correctly_solved() &&
@@ -74,6 +69,7 @@ class Game {
       this.overlay.tween.animate_to(0);
       this.overlay.should_close = false;
     }
+    */
   }
 
   draw(time_delta: number): void {
@@ -108,87 +104,63 @@ class Game {
     // Grids
     let grids = [];
     for (const p of this.puzzle_sets) {
-      for (const g of p.solved_grids) {
+      for (const g of p.grids) {
         grids.push(g);
       }
     }
 
-    for (const grid of this.fading_grids) grid.draw(time_delta);
+    for (const grid of this.fading_grids) {
+      grid.draw(time_delta, undefined);
+    }
     for (const g of grids) {
       if (!g.transform_tween.is_animating()) {
-        g.draw(time_delta);
+        g.draw(time_delta, undefined);
       }
     }
     // Draw animating grids above normal grids
     for (const g of grids) {
       if (g.transform_tween.is_animating()) {
-        g.draw(time_delta);
+        g.draw(time_delta, undefined);
       }
     }
-    this.overlay.grid.draw(time_delta);
   }
 
   /* TRANSFORMS */
 
   camera_transform(): Transform {
-    let pure_camera_transform = this
+    return this
       .puzzle_world_transform
       .then_translate(canvas.width / 2, canvas.height / 2);
-
-    let current_puzzle = this.puzzle_sets[this.overlay.puzzle_idx];
-    let pure_overlay_transform = new Transform()
-      .then_translate(-current_puzzle.pos.x, -current_puzzle.pos.y)
-      .then_scale(DEFAULT_ZOOM)
-      .then_translate(canvas.width / 2, PUZZLE_HEADER_HEIGHT / 2);
-
-    let overlay_factor = this.overlay.tween.get();
-    return Transform.lerp(pure_camera_transform, pure_overlay_transform, overlay_factor);
   }
 
   /* INTERACTION */
 
   on_mouse_move(dx: number, dy: number): void {
-    if (this.overlay_fully_on()) {
-      this.overlay.grid.on_mouse_move();
-    }
-
-    if (!this.overlay_fully_on()) {
-      // No overlay grid means we should be interacting with the puzzle world
-      if (mouse_button) {
-        this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
-      }
+    // No overlay grid means we should be interacting with the puzzle world
+    if (mouse_button) {
+      this.puzzle_world_transform = this.puzzle_world_transform.then_translate(dx, dy);
     }
   }
 
   on_mouse_down(): void {
-    let is_overlay_tweening_in = this.overlay.tween.target === 1;
-    if (!this.overlay_fully_off() && is_overlay_tweening_in) {
-      // TODO: Don't allow drawing lines while the overlay is tweening in?
-      const was_click_registered = this.overlay.grid.on_mouse_down();
-      if (!was_click_registered) {
-        this.overlay.should_close = true;
-      }
-    }
-
-    if (this.overlay_fully_off()) {
-      // No overlay grid means we should be interacting with the puzzle world
-      let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
-      for (let i = 0; i < this.puzzle_sets.length; i++) {
-        let r = puzzle_sets[i].overall_rect();
-        if (x < r.x || x > r.x + r.w) continue;
-        if (y < r.y || y > r.y + r.h) continue;
-        // Mouse is within this puzzle's rect, so open it as a puzzle
-        this.overlay.grid = new Grid(puzzle_sets[i].puzzle, "overlay");
-        this.overlay.puzzle_idx = i;
-        this.overlay.tween.animate_to(1);
-      }
+    // No overlay grid means we should be interacting with the puzzle world
+    let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
+    for (let i = 0; i < this.puzzle_sets.length; i++) {
+      let r = puzzle_sets[i].overall_rect();
+      if (x < r.x || x > r.x + r.w) continue;
+      if (y < r.y || y > r.y + r.h) continue;
+      // Mouse is within this puzzle's rect, so open it as a puzzle
+      console.log(`Clicked on puzzle #${i}`);
+      /*
+      this.overlay.grid = new Grid(puzzle_sets[i].puzzle, "overlay");
+      this.overlay.puzzle_idx = i;
+      this.overlay.tween.animate_to(1);
+      */
     }
   }
 
   on_mouse_up(): void {
-    if (this.overlay_fully_on()) {
-      this.overlay.grid.on_mouse_up();
-    }
+    // Do nothing (yet)
   }
 
   on_scroll(delta_y: number): void {
@@ -200,25 +172,7 @@ class Game {
       .puzzle_world_transform
       .then_scale(desired_scale / this.puzzle_world_transform.scale);
   }
-
-  overlay_fully_on(): boolean {
-    return this.overlay.tween.get() > 1 - 1e-6;
-  }
-
-  overlay_fully_off(): boolean {
-    return this.overlay.tween.get() < 1e-6;
-  }
 }
-
-type Overlay = {
-  grid: Grid;
-  puzzle_idx: number;
-  tween: Tween<number>;
-  // If the user closes the overlay in the time between a puzzle being solved and being added to
-  // the solution we register that input but delay it until after solved grid has been added to the
-  // puzzle world
-  should_close: boolean;
-};
 
 /* ===== INIT CODE ===== */
 

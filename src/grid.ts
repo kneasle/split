@@ -10,9 +10,9 @@ class Grid {
   displayed_line: LerpedLine;
   solution: Solution | undefined;
 
-  transform_tween: Tween<TransformState>;
+  transform_tween: Tween<Transform>;
 
-  constructor(puzzle: Puzzle, state: TransformState) {
+  constructor(puzzle: Puzzle, state: Transform) {
     this.puzzle = puzzle;
 
     this.line_path = []; // List of vertex indices which make up the line being drawn
@@ -26,7 +26,7 @@ class Grid {
     this.solution = undefined;
 
     // State for animating the transform
-    this.transform_tween = new Tween<TransformState>(
+    this.transform_tween = new Tween<Transform>(
       state,
       GRID_MOVE_ANIMATION_TIME,
       (_a, b, _t) => b,
@@ -47,8 +47,7 @@ class Grid {
     }
   }
 
-  on_mouse_down(): boolean {
-    const interaction = this.interaction()!;
+  on_mouse_down(interaction: Interaction): boolean {
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
       this.line_path = [interaction.vert_idx];
@@ -76,10 +75,8 @@ class Grid {
     return true;
   }
 
-  on_mouse_move(): void {
+  on_mouse_move(interaction: Interaction): void {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
-
-    const interaction = this.interaction()!;
 
     let new_vert = interaction.vert_idx;
     let last_vert = this.line_path[this.line_path.length - 1];
@@ -127,15 +124,7 @@ class Grid {
     for (const region of this.solution.regions) {
       if (region.pips === 0) continue;
       // Compute the centre of the region
-      let total_x = 0;
-      let total_y = 0;
-      for (const c of region.cells) {
-        let cell = this.puzzle.cells[c];
-        total_x += cell.centre.x;
-        total_y += cell.centre.y;
-      }
-      let avg_x = total_x / region.cells.length;
-      let avg_y = total_y / region.cells.length;
+      let region_centre = this.get_region_centre(region);
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned:
@@ -144,8 +133,8 @@ class Grid {
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell = _this.puzzle.cells[cell_idx];
-        let dx = cell.centre.x - avg_x;
-        let dy = cell.centre.y - avg_y;
+        let dx = cell.centre.x - region_centre.x;
+        let dy = cell.centre.y - region_centre.y;
         let dist = dx * dx + dy * dy;
         return [dist, -(cell.centre.x + cell.centre.y) % 2];
       });
@@ -167,8 +156,21 @@ class Grid {
     }
   }
 
-  draw(time_delta: number): void {
-    const interaction = this.interaction();
+  private get_region_centre(region: Region): Vec2 {
+    let total_x = 0;
+    let total_y = 0;
+    for (const c of region.cells) {
+      let cell = this.puzzle.cells[c];
+      total_x += cell.centre.x;
+      total_y += cell.centre.y;
+    }
+    return {
+      x: total_x / region.cells.length,
+      y: total_y / region.cells.length,
+    };
+  }
+
+  draw(time_delta: number, interaction: Interaction | undefined): void {
     const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
       .to_canvas_color();
 
@@ -203,9 +205,9 @@ class Grid {
       // Decide if the vertex should be line coloured
       let should_be_line_colored;
       if (this.line_path.length <= 1) {
-        let _interaction = interaction!;
-        should_be_line_colored = v_idx === _interaction.vert_idx &&
-          (this.is_drawing_line || _interaction.vert_distance <= VERTEX_INTERACTION_RADIUS);
+        should_be_line_colored = interaction &&
+          v_idx === interaction.vert_idx &&
+          (this.is_drawing_line || interaction.vert_distance <= VERTEX_INTERACTION_RADIUS);
       } else {
         let start_vert = this.line_path[0];
         let end_vert = this.line_path[this.line_path.length - 1];
@@ -388,7 +390,7 @@ class Grid {
 
   // Find out what the mouse must be interacting with (in this case, the user is defined to be
   // interacting with the nearest vertex to the mouse).
-  interaction(): Interaction | undefined {
+  get_interaction(): Interaction | undefined {
     // Transform mouse coordinates into the puzzle's coord space
     let local_mouse = this.transform().inv().transform_point(mouse_x, mouse_y);
 
@@ -411,34 +413,7 @@ class Grid {
   }
 
   transform(): Transform {
-    return this.transform_tween.get_with_lerp_fn(
-      (a, b, t) => Transform.lerp(this.transform_from_state(a), this.transform_from_state(b), t),
-    );
-  }
-
-  transform_from_state(state: TransformState): Transform {
-    // Get the rectangle in which the puzzle has to fit
-    if (state === "overlay" || state === "tiny") {
-      // Transform is in the overlay, so fill the screen as best we can
-      let rect = {
-        x: 0,
-        y: PUZZLE_HEADER_HEIGHT,
-        w: canvas.width,
-        h: canvas.height - PUZZLE_HEADER_HEIGHT,
-      };
-      const puzzle_width = this.puzzle.grid_width + 0.5 * 2;
-      const puzzle_height = this.puzzle.grid_height + 0.5 * 2;
-      let scale_to_fill = Math.min(rect.w / puzzle_width, rect.h / puzzle_height);
-      let scale_multiplier = (state === "overlay") ? game.overlay.tween.get() : 0;
-      return new Transform()
-        .then_translate(-this.puzzle.grid_width / 2, -this.puzzle.grid_height / 2)
-        .then_scale(scale_to_fill * scale_multiplier)
-        .then_translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
-    } else {
-      // Transform is in puzzle world
-      let transform = state;
-      return transform.then(game.camera_transform());
-    }
+    return this.transform_tween.get().then(game.camera_transform());
   }
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
@@ -467,16 +442,6 @@ class Grid {
   solution_color(): Color {
     return this.is_correctly_solved() ? CORRECT_COLOR : INCORRECT_COLOR;
   }
-}
-
-type TransformState =
-  | "tiny"
-  | "overlay"
-  | Transform; // Grid is in puzzle world
-
-function is_faded(s: TransformState): boolean {
-  if (typeof s === "object") return s.scale === 0;
-  else return false;
 }
 
 type LerpedLine = {
