@@ -174,12 +174,20 @@ class Game {
   refocus_to_puzzle_under_cursor(): void {
     if (this.focussed_puzzle_tween.is_animating()) return; // Don't refocus puzzles while animating
 
-    // If we click on a puzzle, move it to focus regardless if there's already a puzzle focussed
+    // If we click on a puzzle, focus on it
     let { x, y } = this.camera_transform().inv().transform_point(mouse_x, mouse_y);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       let r = puzzle_sets[i].overall_rect();
       if (x < r.x || x > r.x + r.w) continue;
       if (y < r.y || y > r.y + r.h) continue;
+      // If we're moving from one puzzle to another, then move the camera as well so that the
+      // camera won't zoom back across the map to see it
+      let current_puzzle = this.focussed_puzzle_tween.get();
+      if (current_puzzle !== undefined) {
+        this.puzzle_world_transform = Transform
+          .translate(0, current_puzzle - i)
+          .then(this.puzzle_world_transform);
+      }
       // Mouse is within this puzzle's rect, so open it as a puzzle
       this.focussed_puzzle_tween.animate_to(i);
       return;
