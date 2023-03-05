@@ -138,7 +138,8 @@ class Grid {
         return [
           Math.min(...distances_to_symmetry_lines),
           Vec2.distance_between(cell_centre, centroid),
-          -(cell_centre.x + cell_centre.y) % 2, // Tie-break by snapping to a checker-board
+          Vec2.distance_between(cell_centre, Vec2.ZERO),
+          -Math.abs(Math.ceil(cell_centre.x) + Math.ceil(cell_centre.y)) % 2, // Checkerboard
         ];
       });
 
