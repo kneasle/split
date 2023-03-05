@@ -75,7 +75,7 @@ class Grid {
     return true;
   }
 
-  on_mouse_move(interaction: Interaction): void {
+  handle_mouse_move(interaction: Interaction, mouse: MouseUpdate): void {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
     let new_vert = interaction.vert_idx;
@@ -83,7 +83,7 @@ class Grid {
     let penultimate_vert = this.line_path[this.line_path.length - 2];
 
     if (this.line_path.length == 0) return; // No line is being drawn
-    if (!mouse_button) return; // User is not dragging
+    if (!mouse.button_down) return; // User is not dragging
     if (new_vert === undefined) return; // Mouse not close enough to a vert
     if (new_vert === last_vert) return; // Still on last vert
     if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined) {
@@ -388,30 +388,6 @@ class Grid {
     }
   }
 
-  // Find out what the mouse must be interacting with (in this case, the user is defined to be
-  // interacting with the nearest vertex to the mouse).
-  get_interaction(): Interaction | undefined {
-    // Transform mouse coordinates into the puzzle's coord space
-    let local_mouse = this.transform().inv().transform_point(mouse_x, mouse_y);
-
-    let interaction = undefined;
-    for (let vert_idx = 0; vert_idx < this.puzzle.verts.length; vert_idx++) {
-      let { x: vert_x, y: vert_y } = this.puzzle.verts[vert_idx];
-      let dX = local_mouse.x - vert_x;
-      let dY = local_mouse.y - vert_y;
-      let dist = Math.sqrt(dX * dX + dY * dY);
-      if (interaction === undefined || dist < interaction.vert_distance) {
-        interaction = {
-          local_x: local_mouse.x,
-          local_y: local_mouse.y,
-          vert_idx,
-          vert_distance: dist,
-        };
-      }
-    }
-    return interaction;
-  }
-
   transform(): Transform {
     return this.transform_tween.get().then(game.camera_transform());
   }
@@ -451,6 +427,9 @@ type LerpedLine = {
 };
 
 type Interaction = {
+  puzzle_idx: number;
+  grid_idx: number;
+
   local_x: number;
   local_y: number;
   vert_idx: number;
