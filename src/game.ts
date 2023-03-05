@@ -92,18 +92,10 @@ class Game {
     // Puzzles
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       let puzzle_set = this.puzzle_sets[i];
-      let puzzle = puzzle_set.puzzle;
-      let num_solutions = puzzle.num_solutions;
       ctx.strokeStyle = "black";
       // Outline
       let rect = camera_transform.transform_rect(puzzle_set.overall_rect());
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-      // Boxes for solved grids
-      let grid_rect: Rect = { x: 0, y: 0, w: puzzle.grid_width, h: puzzle.grid_height };
-      for (let i = 0; i < num_solutions; i++) {
-        let r = puzzle_set.grid_transform(i).then(camera_transform).transform_rect(grid_rect);
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
-      }
       // Puzzle Number
       ctx.fillStyle = "black";
       ctx.font = `${Math.round(camera_transform.scale * PUZZLE_TEXT_SIZE)}px monospace`;
