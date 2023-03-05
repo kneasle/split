@@ -124,16 +124,19 @@ class Grid {
     for (const region of this.solution.regions) {
       if (region.pips === 0) continue;
       // Compute the centre of the region
-      let region_centre = this.get_region_centre(region);
+      let { centroid, symmetry_line_directions } = this.region_symmetry(region);
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned:
-      //        - For symmetric regions, force pips onto the line of symmetry
+      //        - Tie-break everything with closest to puzzle centre
       //        - Try to make overall pattern symmetric
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell_centre = _this.puzzle.cells[cell_idx].centre;
+        let distances_to_symmetry_lines = symmetry_line_directions
+          .map((dir) => cell_centre.distance_to_line(centroid, dir));
         return [
+          Math.min(...distances_to_symmetry_lines),
           Vec2.distance_between(cell_centre, centroid),
           -(cell_centre.x + cell_centre.y) % 2, // Tie-break by snapping to a checker-board
         ];
@@ -156,13 +159,43 @@ class Grid {
     }
   }
 
-  private get_region_centre(region: Region): Vec2 {
+  private region_symmetry(
+    region: Region,
+  ): { centroid: Vec2; symmetry_line_directions: Vec2[] } {
+    // Compute region centroid
     let total = Vec2.ZERO;
     for (const c of region.cells) {
       let cell = this.puzzle.cells[c];
       total = total.add(cell.centre);
     }
-    return total.div(regions.cells.length);
+    let centroid = total.div(region.cells.length);
+
+    // Find the line of symmetry (if it exists)
+    let lines = [
+      new Vec2(1, 1), // Diagonal top-left <-> bottom-right
+      new Vec2(1, -1), // Diagonal top-right <-> bottom-left
+      new Vec2(0, 1), // Horizontal
+      new Vec2(1, 0), // Vertical
+    ];
+    let symmetry_line_directions = lines.filter((direction) => {
+      // A line of symmetry is valid if every cell gets reflected to another existing cell
+      for (const c of region.cells) {
+        let reflected_centre = this.puzzle.cells[c].centre.reflect_in_line(centroid, direction);
+        let found_reflected_cell = false;
+        for (const c1 of region.cells) {
+          if (Vec2.distance_between(this.puzzle.cells[c1].centre, reflected_centre) < 0.00001) {
+            found_reflected_cell = true;
+            break;
+          }
+        }
+        if (!found_reflected_cell) {
+          return false; // Cell has no reflection, so not a line of symmetry
+        }
+      }
+      return true;
+    });
+
+    return { centroid, symmetry_line_directions };
   }
 
   draw(time_delta: number, interaction: Interaction | undefined): void {
