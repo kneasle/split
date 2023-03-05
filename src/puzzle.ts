@@ -79,15 +79,21 @@ class Puzzle {
       }
     }
 
-    // Translate puzzle so the minimum of the bounding box is at (0, 0)
+    // Find the bbox of the puzzle
     let min = new Vec2(Infinity, Infinity);
     let max = new Vec2(-Infinity, -Infinity);
     for (const v of this.verts) {
       min = Vec2.min(min, v);
       max = Vec2.max(max, v);
     }
+    let rect_centre = Vec2.lerp(min, max, 0.5);
+
+    // Translate puzzle so the centre of the bounding box is at (0, 0)
     for (let v = 0; v < this.verts.length; v++) {
-      this.verts[v] = this.verts[v].sub(min);
+      this.verts[v] = this.verts[v].sub(rect_centre);
+    }
+    for (const c of this.cells) {
+      c.centre = c.centre.sub(rect_centre);
     }
     // Store width and height of this puzzle's bounding box
     this.grid_width = max.x - min.x;

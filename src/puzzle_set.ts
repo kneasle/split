@@ -37,7 +37,6 @@ class PuzzleSet {
       ),
     );
     return new Transform()
-      .then_translate(new Vec2(-this.puzzle.grid_width / 2, -this.puzzle.grid_height / 2))
       .then_scale(this.box.grid_scale)
       .then_translate(centre);
   }
