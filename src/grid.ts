@@ -53,8 +53,8 @@ class Grid {
       this.line_path = [interaction.vert_idx];
       this.is_drawing_line = true;
     } else if (
-      interaction.local_x >= 0 && interaction.local_x <= this.puzzle.grid_width &&
-      interaction.local_y >= 0 && interaction.local_y <= this.puzzle.grid_height
+      interaction.local_pos.x >= 0 && interaction.local_pos.x <= this.puzzle.grid_width &&
+      interaction.local_pos.y >= 0 && interaction.local_pos.x <= this.puzzle.grid_height
     ) {
       this.line_path = []; // Mouse is on the grid but can't start a line
     } else {
@@ -132,11 +132,11 @@ class Grid {
       //        - Try to make overall pattern symmetric
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
-        let cell = _this.puzzle.cells[cell_idx];
-        let dx = cell.centre.x - region_centre.x;
-        let dy = cell.centre.y - region_centre.y;
-        let dist = dx * dx + dy * dy;
-        return [dist, -(cell.centre.x + cell.centre.y) % 2];
+        let cell_centre = _this.puzzle.cells[cell_idx].centre;
+        return [
+          Vec2.distance_between(cell_centre, centroid),
+          -(cell_centre.x + cell_centre.y) % 2, // Tie-break by snapping to a checker-board
+        ];
       });
 
       // Group pips into cells
@@ -157,17 +157,12 @@ class Grid {
   }
 
   private get_region_centre(region: Region): Vec2 {
-    let total_x = 0;
-    let total_y = 0;
+    let total = Vec2.ZERO;
     for (const c of region.cells) {
       let cell = this.puzzle.cells[c];
-      total_x += cell.centre.x;
-      total_y += cell.centre.y;
+      total = total.add(cell.centre);
     }
-    return {
-      x: total_x / region.cells.length,
-      y: total_y / region.cells.length,
-    };
+    return total.div(regions.cells.length);
   }
 
   draw(time_delta: number, interaction: Interaction | undefined): void {
@@ -270,8 +265,7 @@ class Grid {
   update_ideal_line(interaction: Interaction) {
     // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
     let edge_data = this.puzzle.nearest_edge_point_extending_line(
-      interaction.local_x,
-      interaction.local_y,
+      interaction.local_pos,
       this.line_path,
     );
     let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
@@ -394,11 +388,8 @@ class Grid {
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
     const cell = this.puzzle.cells[cell_idx];
-    const { x, y } = dice_pattern(num_pips || cell.pips)[pip_idx];
-    return {
-      x: cell.centre.x + x * PIP_PATTERN_RADIUS,
-      y: cell.centre.y + y * PIP_PATTERN_RADIUS,
-    };
+    const pattern_coord = dice_pattern(num_pips || cell.pips)[pip_idx];
+    return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
   }
 
   is_ready_to_be_stashed(): boolean {
@@ -430,8 +421,7 @@ type Interaction = {
   puzzle_idx: number;
   grid_idx: number;
 
-  local_x: number;
-  local_y: number;
+  local_pos: Vec2;
   vert_idx: number;
   vert_distance: number;
 };
@@ -465,22 +455,21 @@ function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
 function dice_pattern(num_pips: number): Vec2[] {
   const pip_pair_patterns = [
-    [1, -1], // 2
-    [1, 1], // 4
-    [1, 0], // 6
-    [0, 1], // 8
-    [1 / 3, 1 / 3], // 10
+    new Vec2(1, -1), // added for 2
+    new Vec2(1, 1), //  added for 4
+    new Vec2(1, 0), //  added for 6
+    new Vec2(0, 1), //  added for 8
+    new Vec2(1 / 3, 1 / 3), // added for 10
   ];
 
   const pip_positions = [];
   // Add pairs of opposite pips for each even-numbered dice patterns
   for (let i = 0; i < (num_pips - 1) / 2; i++) {
-    let [x, y] = pip_pair_patterns[i];
-    pip_positions.push({ x: x, y: y });
-    pip_positions.push({ x: -x, y: -y });
+    pip_positions.push(pip_pair_patterns[i]);
+    pip_positions.push(pip_pair_patterns[i].neg());
   }
   // Add a pip in the centre for odd-numbered dice patterns
-  if (num_pips % 2 == 1) pip_positions.push({ x: 0, y: 0 });
+  if (num_pips % 2 == 1) pip_positions.push(Vec2.ZERO);
 
   return pip_positions;
 }

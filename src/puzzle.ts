@@ -23,7 +23,7 @@ class Puzzle {
     this.verts = [];
     for (let y = 0; y < height + 1; y++) {
       for (let x = 0; x < width + 1; x++) {
-        this.verts.push({ x, y });
+        this.verts.push(new Vec2(x, y));
       }
     }
     let vert_idx = (x: number, y: number) => y * (width + 1) + x;
@@ -72,7 +72,7 @@ class Puzzle {
 
         this.cells.push({
           verts: [tl, tr, br, bl],
-          centre: { x: x + 0.5, y: y + 0.5 },
+          centre: new Vec2(x + 0.5, y + 0.5),
           pips: parseInt(pip_lines[y][x]) || 0,
           neighbours,
         });
@@ -80,17 +80,14 @@ class Puzzle {
     }
 
     // Translate puzzle so the minimum of the bounding box is at (0, 0)
-    let min = { x: Infinity, y: Infinity };
-    let max = { x: -Infinity, y: -Infinity };
-    for (const { x, y } of this.verts) {
-      min.x = Math.min(min.x, x);
-      min.y = Math.min(min.y, y);
-      max.x = Math.max(max.x, x);
-      max.y = Math.max(max.y, y);
-    }
+    let min = new Vec2(Infinity, Infinity);
+    let max = new Vec2(-Infinity, -Infinity);
     for (const v of this.verts) {
-      v.x -= min.x;
-      v.y -= min.y;
+      min = Vec2.min(min, v);
+      max = Vec2.max(max, v);
+    }
+    for (let v = 0; v < this.verts.length; v++) {
+      this.verts[v] = this.verts[v].sub(min);
     }
     // Store width and height of this puzzle's bounding box
     this.grid_width = max.x - min.x;
@@ -156,7 +153,7 @@ class Puzzle {
 
   // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle, *excluding* those already on
   // the given `line`.
-  nearest_edge_point_extending_line(p_x: number, p_y: number, line: number[]): NearestEdge {
+  nearest_edge_point_extending_line(p: Vec2, line: number[]): NearestEdge {
     let nearest = undefined;
     for (let edge_idx = 0; edge_idx < this.edges.length; edge_idx++) {
       let { v1, v2 } = this.edges[edge_idx];
@@ -182,27 +179,20 @@ class Puzzle {
       // If this edge is a valid extension/contraction of the line, then it is a candidate for
       // being the closest edge to the point.
 
-      let s_x = this.verts[v1].x;
-      let s_y = this.verts[v1].y;
-      let d_x = this.verts[v2].x - s_x;
-      let d_y = this.verts[v2].y - s_y;
-      let d_dot_p_minus_s = d_x * (p_x - s_x) + d_y * (p_y - s_y);
-      let d_dot_d = d_x * d_x + d_y * d_y;
-      let lambda = d_dot_p_minus_s / d_dot_d;
+      // Find nearest point on line
+      let s = this.verts[v1];
+      let d = this.verts[v2].sub(s);
+      let d_dot_p_minus_s = d.dot(p.sub(s));
+      let lambda = d_dot_p_minus_s / d.square_length();
       lambda = Math.max(0, Math.min(1, lambda)); // Clamp to the line
-      // Compute point
-      let nearest_x = s_x + lambda * d_x;
-      let nearest_y = s_y + lambda * d_y;
+      let nearest_point = s.add(d.mul(lambda));
       // Compute distance
-      let dist_x = p_x - nearest_x;
-      let dist_y = p_y - nearest_y;
-      let distance = Math.sqrt(dist_x * dist_x + dist_y * dist_y);
+      let distance = p.sub(nearest_point).length();
       if (nearest === undefined || distance < nearest.distance) {
         nearest = {
           edge_idx,
           lambda,
-          x: nearest_x,
-          y: nearest_y,
+          point: nearest_point,
           distance,
         };
       }
@@ -238,7 +228,6 @@ type Region = { pips: number; cells: number[] };
 type NearestEdge = {
   edge_idx: number;
   lambda: number;
-  x: number;
-  y: number;
+  point: Vec2;
   distance: number;
 };

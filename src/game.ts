@@ -139,13 +139,13 @@ class Game {
         (1 - FOCUS_BORDER_HORIZONTAL * 2) * canvas.width / puzzle.box.width, // Scale to fill width
         (1 - FOCUS_BORDER_VERTICAL * 2) * canvas.height / puzzle.box.height, // Scale to fill height
       );
-      return Transform.translate(0, -puzzle_idx).then_scale(scale);
+      return Transform.translate(Vec2.UP.mul(puzzle_idx)).then_scale(scale);
     };
 
     return this.focussed_puzzle_tween.get_with_lerp_fn((a, b, t) =>
       Transform
         .lerp(focus_transform(a), focus_transform(b), t)
-        .then_translate(canvas.width / 2, canvas.height / 2)
+        .then_translate(new Vec2(canvas.width / 2, canvas.height / 2))
     );
   }
 
@@ -162,9 +162,7 @@ class Game {
     if (this.is_fully_unfocussed()) {
       // If no puzzle is focussed, mouse movement can only be used to pan the camera
       if (mouse.button_down) {
-        this.puzzle_world_transform = this
-          .puzzle_world_transform
-          .then_translate(mouse.dx, mouse.dy);
+        this.puzzle_world_transform = this.puzzle_world_transform.then_translate(mouse.delta);
       }
     }
     let interaction = this.interaction(mouse);
@@ -221,7 +219,7 @@ class Game {
         // If we're moving from one puzzle to another, then move the camera as well so that, when
         // the user finally unfocusses, camera won't zoom back across the map to see it
         this.puzzle_world_transform = Transform
-          .translate(0, focussed_puzzle - puzzle_under_cursor)
+          .translate(Vec2.DOWN.mul(focussed_puzzle - puzzle_under_cursor))
           .then(this.puzzle_world_transform);
       }
       // Mouse is within this puzzle's rect, so open it as a puzzle
@@ -255,7 +253,7 @@ class Game {
 
       let grid = focussed_puzzle_grids[grid_idx];
       // ... for each vertex in that grid ...
-      let local_mouse = grid.transform().inv().transform_point(mouse.x, mouse.y);
+      let local_mouse = grid.transform().inv().transform_point(mouse.pos);
       for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
         let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
         let dX = local_mouse.x - vert_x;
@@ -267,8 +265,7 @@ class Game {
             puzzle_idx: focussed_puzzle,
             grid_idx,
 
-            local_x: local_mouse.x,
-            local_y: local_mouse.y,
+            local_pos: local_mouse,
             vert_idx,
             vert_distance: dist,
           };
@@ -294,7 +291,7 @@ class Game {
   }
 
   puzzle_under_cursor(mouse: MouseUpdate): number | undefined {
-    let { x, y } = this.camera_transform().inv().transform_point(mouse.x, mouse.y);
+    let { x, y } = this.camera_transform().inv().transform_point(mouse.pos);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       let r = puzzle_sets[i].overall_rect();
       if (x < r.x || x > r.x + r.w) continue;
@@ -464,13 +461,11 @@ class MouseEventHandler {
   // TODO: Handle the case where a user clicks and unclicks in the same frame?
 
   private current_state: MouseState = {
-    x: -10000,
-    y: -10000,
+    pos: new Vec2(-10000, -10000),
     button: false,
   };
   private state_at_last_frame: MouseState = {
-    x: -10000,
-    y: -10000,
+    pos: new Vec2(-10000, -10000),
     button: false,
   };
 
@@ -482,8 +477,7 @@ class MouseEventHandler {
       this.update_mouse(evt);
       // Make sure that the first mouse movement has a delta of zero (rather than ~14k pixels)
       if (!this.has_mouse_moved_yet) {
-        this.state_at_last_frame.x = this.current_state.x;
-        this.state_at_last_frame.y = this.current_state.y;
+        this.state_at_last_frame.pos = this.current_state.pos;
         this.has_mouse_moved_yet = true;
       }
     });
@@ -501,10 +495,8 @@ class MouseEventHandler {
 
   begin_frame(): MouseUpdate {
     let update = {
-      x: this.current_state.x,
-      y: this.current_state.y,
-      dx: this.current_state.x - this.state_at_last_frame.x,
-      dy: this.current_state.y - this.state_at_last_frame.y,
+      pos: this.current_state.pos,
+      delta: this.current_state.pos.sub(this.state_at_last_frame.pos),
 
       button_down: this.current_state.button,
       button_clicked: !this.state_at_last_frame.button && this.current_state.button,
@@ -520,18 +512,18 @@ class MouseEventHandler {
   }
 
   private update_mouse(evt: MouseEvent): void {
-    this.current_state.x = evt.clientX * window.devicePixelRatio;
-    this.current_state.y = evt.clientY * window.devicePixelRatio;
+    this.current_state.pos = new Vec2(
+      evt.clientX * window.devicePixelRatio,
+      evt.clientY * window.devicePixelRatio,
+    );
     this.current_state.button = evt.buttons != 0;
   }
 }
 
-type MouseState = { x: number; y: number; button: boolean };
+type MouseState = { pos: Vec2; button: boolean };
 type MouseUpdate = {
-  readonly x: number;
-  readonly y: number;
-  readonly dx: number;
-  readonly dy: number;
+  readonly pos: Vec2;
+  readonly delta: Vec2;
 
   readonly button_down: boolean;
   readonly button_clicked: boolean;

@@ -7,7 +7,7 @@ class PuzzleSet {
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
 
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
-    this.pos = { x, y };
+    this.pos = new Vec2(x, y);
     this.puzzle = new Puzzle(pattern, num_solutions);
 
     // Compute box and grid scales
@@ -30,14 +30,16 @@ class PuzzleSet {
   }
 
   grid_transform(soln_number: number): Transform {
-    let centre_x = this.pos.x +
-      (soln_number - this.puzzle.num_solutions / 2 + 1 / 2) *
-        (this.box.width / this.puzzle.num_solutions);
-    let centre_y = this.pos.y;
+    let centre = this.pos.add(
+      Vec2.RIGHT.mul(
+        (soln_number - this.puzzle.num_solutions / 2 + 1 / 2) *
+          (this.box.width / this.puzzle.num_solutions),
+      ),
+    );
     return new Transform()
-      .then_translate(-this.puzzle.grid_width / 2, -this.puzzle.grid_height / 2)
+      .then_translate(new Vec2(-this.puzzle.grid_width / 2, -this.puzzle.grid_height / 2))
       .then_scale(this.box.grid_scale)
-      .then_translate(centre_x, centre_y);
+      .then_translate(centre);
   }
 
   overall_rect(): Rect {

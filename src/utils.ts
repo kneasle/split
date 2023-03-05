@@ -154,56 +154,49 @@ function lerp(a: number, b: number, t: number): number {
 
 class Transform {
   scale: number;
-  dx: number;
-  dy: number;
+  translation: Vec2;
 
   constructor() {
     this.scale = 1;
-    this.dx = 0;
-    this.dy = 0;
+    this.translation = Vec2.ZERO;
   }
 
   static scale(scale: number): Transform {
     return new Transform().then_scale(scale);
   }
 
-  static translate(x: number, y: number): Transform {
-    return new Transform().then_translate(x, y);
+  static translate(delta: Vec2): Transform {
+    return new Transform().then_translate(delta);
   }
 
   then(other: Transform): Transform {
-    return this.then_scale(other.scale).then_translate(other.dx, other.dy);
+    return this.then_scale(other.scale).then_translate(other.translation);
   }
 
   then_scale(scale: number): Transform {
     let tr = new Transform();
     tr.scale = this.scale * scale;
-    tr.dx = this.dx * scale;
-    tr.dy = this.dy * scale;
+    tr.translation = this.translation.mul(scale);
     return tr;
   }
 
-  then_translate(dx: number, dy: number): Transform {
+  then_translate(delta: Vec2): Transform {
     let tr = new Transform();
     tr.scale = this.scale;
-    tr.dx = this.dx + dx;
-    tr.dy = this.dy + dy;
+    tr.translation = this.translation.add(delta);
     return tr;
   }
 
   inv(): Transform {
-    return Transform.translate(-this.dx, -this.dy).then_scale(1 / this.scale);
+    return Transform.translate(this.translation.neg()).then_scale(1 / this.scale);
   }
 
-  transform_point(x: number, y: number): Vec2 {
-    return {
-      x: x * this.scale + this.dx,
-      y: y * this.scale + this.dy,
-    };
+  transform_point(p: Vec2): Vec2 {
+    return p.mul(this.scale).add(this.translation);
   }
 
   transform_rect(rect: Rect): Rect {
-    let { x, y } = this.transform_point(rect.x, rect.y);
+    let { x, y } = this.transform_point(new Vec2(rect.x, rect.y));
     return {
       x,
       y,
@@ -213,19 +206,117 @@ class Transform {
   }
 
   apply_to_canvas(ctx: CanvasRenderingContext2D) {
-    ctx.translate(this.dx, this.dy);
+    ctx.translate(this.translation.x, this.translation.y);
     ctx.scale(this.scale, this.scale);
   }
 
   static lerp(a: Transform, b: Transform, t: number): Transform {
     let tr = new Transform();
     tr.scale = lerp(a.scale, b.scale, t);
-    tr.dx = lerp(a.dx, b.dx, t);
-    tr.dy = lerp(a.dy, b.dy, t);
+    tr.translation = Vec2.lerp(a.translation, b.translation, t);
     return tr;
   }
 }
 
-type Vec2 = { x: number; y: number };
+class Vec2 {
+  readonly x: number;
+  readonly y: number;
+
+  static readonly ZERO: Vec2 = new Vec2(0, 0);
+  static readonly ONE: Vec2 = new Vec2(1, 1);
+  static readonly X: Vec2 = new Vec2(1, 0);
+  static readonly Y: Vec2 = new Vec2(0, 1);
+
+  static readonly UP: Vec2 = new Vec2(0, -1);
+  static readonly DOWN: Vec2 = new Vec2(0, 1);
+  static readonly LEFT: Vec2 = new Vec2(-1, 0);
+  static readonly RIGHT: Vec2 = new Vec2(1, 0);
+
+  constructor(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+
+  /* BASIC ARITHMETIC */
+
+  add(other: Vec2): Vec2 {
+    return new Vec2(this.x + other.x, this.y + other.y);
+  }
+
+  sub(other: Vec2): Vec2 {
+    return new Vec2(this.x - other.x, this.y - other.y);
+  }
+
+  mul(factor: number): Vec2 {
+    return new Vec2(this.x * factor, this.y * factor);
+  }
+
+  div(factor: number): Vec2 {
+    return new Vec2(this.x / factor, this.y / factor);
+  }
+
+  neg(): Vec2 {
+    return new Vec2(-this.x, -this.y);
+  }
+
+  dot(other: Vec2): number {
+    return this.x * other.x + this.y * other.y;
+  }
+
+  length(): number {
+    return Math.sqrt(this.square_length());
+  }
+
+  square_length(): number {
+    return this.dot(this);
+  }
+
+  /* GEOMETRIC OPERATIONS */
+
+  nearest_point_on_line(p: Vec2, direction: Vec2): Vec2 {
+    // (this - p).project_onto_line() + p
+    return this.sub(p).project_onto(direction).add(p);
+  }
+
+  distance_to_line(p: Vec2, direction: Vec2): number {
+    return Vec2.distance_between(this, this.nearest_point_on_line(p, direction));
+  }
+
+  reflect_in_line(p: Vec2, direction: Vec2): Vec2 {
+    // p + (this - p).reflect_over(direction)
+    return p.add(this.sub(p).reflect_over(direction));
+  }
+
+  reflect_over(direction: Vec2): Vec2 {
+    // this.project_onto(direction) * 2 - this
+    return this.project_onto(direction).mul(2).sub(this);
+  }
+
+  project_onto(direction: Vec2): Vec2 {
+    return direction.mul(this.projection_lambda_onto(direction));
+  }
+
+  projection_lambda_onto(direction: Vec2): number {
+    return this.dot(direction) / direction.square_length();
+  }
+
+  /* FANCY ARITHMETIC */
+
+  static distance_between(a: Vec2, b: Vec2): number {
+    return a.sub(b).length();
+  }
+
+  static min(a: Vec2, b: Vec2): Vec2 {
+    return new Vec2(Math.min(a.x, b.x), Math.min(a.y, b.y));
+  }
+
+  static max(a: Vec2, b: Vec2): Vec2 {
+    return new Vec2(Math.max(a.x, b.x), Math.max(a.y, b.y));
+  }
+
+  static lerp(a: Vec2, b: Vec2, t: number): Vec2 {
+    return new Vec2(lerp(a.x, b.x, t), lerp(a.y, b.y, t));
+  }
+}
 
 type Rect = { x: number; y: number; w: number; h: number };
