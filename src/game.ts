@@ -310,6 +310,7 @@ let _puzzles = [
   { num_solutions: 2, pattern: ".1.|1.1|.1." },
   { num_solutions: 3, pattern: "111|111" },
   { num_solutions: 2, pattern: "111|111|111" },
+  { num_solutions: 1, pattern: "811|111|111" },
   { num_solutions: 1, pattern: "111|181|111" },
 
   // Cool set of puzzles
@@ -408,6 +409,7 @@ let _puzzles = [
   { num_solutions: 1, pattern: "62..|2.3.|.32.|...." },
   { num_solutions: 1, pattern: "62..|2.3.|.32.|...6" },
   { num_solutions: 1, pattern: ".....|..2..|..6..|32.23" },
+  { num_solutions: 1, pattern: ".....|...3.|....2|..2..|2...3" },
   { num_solutions: 1, pattern: ".....|.6.3.|....2|...2.|2...3" },
   { num_solutions: 2, pattern: ".....|.6.3.|....2|6..2.|2...3" },
 
