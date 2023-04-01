@@ -385,6 +385,7 @@ let _puzzles = [
   { num_solutions: 2, pattern: "22.|1..|..1" },
   { num_solutions: 2, pattern: "222|1..|..1" },
   { num_solutions: 2, pattern: "222|1.1|..." },
+  { num_solutions: 2, pattern: "2.2|.2.|1.1" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: ".31|31.|1.." },
