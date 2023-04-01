@@ -4,33 +4,41 @@ class Grid {
   pips: Pip[];
   pip_idxs_per_cell: number[][];
 
-  line_path: number[];
+  solution: Solution | undefined;
+  solvedness: Tween<number>; // 0 <= solvedness <= 1: 0 is unsolved, 1 is solved
+  stashable_last_frame: boolean;
+
   is_drawing_line: boolean;
+  line_path: number[];
   ideal_line: LerpedLine;
   displayed_line: LerpedLine;
-  solution: Solution | undefined;
 
   transform_tween: Tween<Transform>;
 
-  constructor(puzzle: Puzzle, state: Transform) {
+  constructor(puzzle: Puzzle, transform: Transform) {
     this.puzzle = puzzle;
 
-    this.line_path = []; // List of vertex indices which make up the line being drawn
-    this.is_drawing_line = false;
-    this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
-    this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
     // For every `Grid`, `solution` is always in one of three states:
     // 1) `this.solution === undefined`: no solution is on the grid; the puzzle is unsolved
     // 2) `this.solution.is_valid === true`: the solution is valid
     // 3) `this.solution.is_valid === false`: the solution is invalid
     this.solution = undefined;
+    this.solvedness = new Tween<number>(0, SOLVE_ANIMATION_TIME, lerp);
+    this.stashable_last_frame = false;
+
+    this.is_drawing_line = false;
+    this.line_path = []; // List of vertex indices which make up the line being drawn
+    this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
+    this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
 
     // State for animating the transform
+    let zero_scale_transform = Transform.scale(0).then(transform);
     this.transform_tween = new Tween<Transform>(
-      state,
+      zero_scale_transform,
       GRID_MOVE_ANIMATION_TIME,
-      (_a, b, _t) => b,
+      Transform.lerp,
     );
+    this.transform_tween.animate_to(transform);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -69,6 +77,7 @@ class Grid {
       }
     }
     this.solution = undefined;
+    this.solvedness.animate_to(0.0);
 
     // Reset ideal line
     this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
@@ -119,26 +128,27 @@ class Grid {
       return; // Can't solve the puzzle if the line doesn't form a loop
     }
     this.solution = this.puzzle.get_solution(this.line_path);
+    this.solvedness.animate_to(1.0);
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
       if (region.pips === 0) continue;
       // Compute the centre of the region
-      let { centroid, symmetry_line_directions } = this.region_symmetry(region);
+      let { centroid: region_centre, symmetry_line_directions } = this.region_symmetry(region);
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
       // add the pips
       // TODO: Fancier way to determine where the pips are assigned:
-      //        - Tie-break everything with closest to puzzle centre
       //        - Try to make overall pattern symmetric
       let _this = this;
       const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
         let cell_centre = _this.puzzle.cells[cell_idx].centre;
         let distances_to_symmetry_lines = symmetry_line_directions
-          .map((dir) => cell_centre.distance_to_line(centroid, dir));
+          .map((dir) => cell_centre.distance_to_line(region_centre, dir));
+        let puzzle_centre = Vec2.ZERO;
         return [
           Math.min(...distances_to_symmetry_lines),
-          Vec2.distance_between(cell_centre, centroid),
-          Vec2.distance_between(cell_centre, Vec2.ZERO),
+          Vec2.distance_between(cell_centre, region_centre),
+          Vec2.distance_between(cell_centre, puzzle_centre),
           -Math.abs(Math.ceil(cell_centre.x) + Math.ceil(cell_centre.y)) % 2, // Checkerboard
         ];
       });
@@ -200,7 +210,7 @@ class Grid {
   }
 
   draw(time_delta: number, interaction: Interaction | undefined): void {
-    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solution_anim_factor())
+    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.get())
       .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
@@ -426,14 +436,16 @@ class Grid {
     return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
   }
 
-  is_ready_to_be_stashed(): boolean {
+  has_just_become_stashable(): boolean {
+    let just_been_stashed = !this.stashable_last_frame && this.is_stashable();
+    this.stashable_last_frame = this.is_stashable();
+    return just_been_stashed;
+  }
+
+  is_stashable(): boolean {
     return this.is_correctly_solved() &&
       // TODO: Add extra factor for other animations
       uneased_anim_factor(this.solution!.time, SOLVE_ANIMATION_TIME) >= 2.0;
-  }
-
-  solution_anim_factor(): number {
-    return this.solution ? eased_anim_factor(this.solution.time, SOLVE_ANIMATION_TIME) : 0;
   }
 
   is_correctly_solved(): boolean {

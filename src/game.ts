@@ -26,12 +26,63 @@ class Game {
     this.handle_mouse_interaction(mouse);
 
     // Remove any grids which have fully faded
-    /*
-    retain(
-      this.fading_grids,
-      (grid) => !(is_faded(grid.transform_tween.target) && grid.transform_tween.is_complete()),
-    );
-    */
+    retain(this.fading_grids, (grid) => grid.transform().scale > 0);
+
+    for (const ps of this.puzzle_sets) {
+      let needs_sorting = false;
+      for (const g of ps.grids) {
+        if (g.has_just_become_stashable()) {
+          needs_sorting = true;
+          // Note that we don't short circuit here because we need 'has_just_become_stashable'
+          // to be called every frame.
+        }
+      }
+
+      if (needs_sorting) {
+        // Sort grids by solution number, tie-breaking by solution time
+        ps.grids = sort_by_key(ps.grids, (grid) => {
+          let is_correct_soln = grid.solution !== undefined && grid.solution.is_correct;
+          return is_correct_soln
+            ? [grid.solution?.pip_group_size, grid.solution?.time]
+            : [Number.MAX_VALUE, 0];
+        });
+        // Strip out any duplicate solutions and fade them
+        // TODO: Handle the case where someone edits a grid that isn't last
+        let grids_to_fade = [];
+        let grids_to_keep = [];
+        for (let g = 0; g < ps.grids.length; g++) {
+          if (
+            g + 1 < ps.grids.length &&
+            ps.grids[g].solution &&
+            ps.grids[g + 1].solution &&
+            ps.grids[g].solution?.pip_group_size == ps.grids[g + 1].solution?.pip_group_size
+          ) {
+            // Next grid has the same number and is newer, so we fade this one
+            grids_to_fade.push(ps.grids[g]);
+          } else {
+            // Next grid has different number, so we keep this one
+            grids_to_keep.push(ps.grids[g]);
+          }
+        }
+
+        // Keep all of `grids_to_keep`
+        ps.grids = grids_to_keep;
+        // Fade the `fading_grids`
+        for (const g of grids_to_fade) {
+          const zero_scale_transform = Transform.scale(0).then(g.transform_tween.get());
+          g.transform_tween.animate_to(zero_scale_transform);
+        }
+        this.fading_grids.push(...grids_to_fade);
+        // Replenish the grids we lost
+        for (let s = ps.grids.length; s < ps.puzzle.num_solutions; s++) {
+          ps.grids.push(new Grid(ps.puzzle, ps.grid_transform(s)));
+        }
+
+        for (let g = 0; g < ps.grids.length; g++) {
+          ps.grids[g].transform_tween.animate_to(ps.grid_transform(g));
+        }
+      }
+    }
 
     // Trigger adding the solution on the overlay grid to puzzle scene
     /*
