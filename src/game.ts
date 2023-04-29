@@ -179,8 +179,8 @@ class Game {
 
       let puzzle = this.puzzle_sets[puzzle_idx];
       let scale = Math.min(
-        (1 - FOCUS_BORDER_HORIZONTAL * 2) * canvas.width / puzzle.box.width, // Scale to fill width
-        (1 - FOCUS_BORDER_VERTICAL * 2) * canvas.height / puzzle.box.height, // Scale to fill height
+        (1 - FOCUS_BORDER_HORIZONTAL * 2) * canvas.width / puzzle.width, // Scale to fill width
+        (1 - FOCUS_BORDER_VERTICAL * 2) * canvas.height / puzzle.height, // Scale to fill height
       );
       return Transform.translate(Vec2.UP.mul(puzzle_idx)).then_scale(scale);
     };

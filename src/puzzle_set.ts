@@ -1,8 +1,11 @@
 // A set of puzzle grids which share the same `Puzzle`
 class PuzzleSet {
   pos: Vec2;
+  width: number;
+  height: number;
+  grid_scale: number;
+
   grids: Grid[];
-  box: PuzzleBox;
 
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
 
@@ -17,11 +20,10 @@ class PuzzleSet {
       PUZZLE_BOX_MAX_WIDTH / total_grid_width, // scale to fill width
       PUZZLE_BOX_MAX_HEIGHT / total_grid_height, // scale to fill height
     );
-    this.box = {
-      width: total_grid_width * grid_scale,
-      height: PUZZLE_BOX_MAX_HEIGHT, // Puzzles always take up max height
-      grid_scale,
-    };
+
+    this.width = total_grid_width * grid_scale;
+    this.height = PUZZLE_BOX_MAX_HEIGHT; // Puzzles always take up max height
+    this.grid_scale = grid_scale;
 
     this.grids = [];
     for (let i = 0; i < this.puzzle.num_solutions; i++) {
@@ -33,25 +35,19 @@ class PuzzleSet {
     let centre = this.pos.add(
       Vec2.RIGHT.mul(
         (soln_number - this.puzzle.num_solutions / 2 + 1 / 2) *
-          (this.box.width / this.puzzle.num_solutions),
+          (this.width / this.puzzle.num_solutions),
       ),
     );
     return new Transform()
-      .then_scale(this.box.grid_scale)
+      .then_scale(this.grid_scale)
       .then_translate(centre);
   }
 
   overall_rect(): Rect {
-    let width = this.box.width;
-    let height = this.box.height;
+    let width = this.width;
+    let height = this.height;
     let x = this.pos.x - width / 2;
     let y = this.pos.y - height / 2;
     return { x, y, w: width, h: height };
   }
 }
-
-type PuzzleBox = {
-  width: number;
-  height: number;
-  grid_scale: number;
-};
