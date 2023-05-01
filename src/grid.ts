@@ -13,9 +13,7 @@ class Grid {
   ideal_line: LerpedLine;
   displayed_line: LerpedLine;
 
-  transform_tween: Tween<Transform>;
-
-  constructor(puzzle: Puzzle, transform: Transform) {
+  constructor(puzzle: Puzzle) {
     this.puzzle = puzzle;
 
     // For every `Grid`, `solution` is always in one of three states:
@@ -30,15 +28,6 @@ class Grid {
     this.line_path = []; // List of vertex indices which make up the line being drawn
     this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
     this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
-
-    // State for animating the transform
-    let zero_scale_transform = Transform.scale(0).then(transform);
-    this.transform_tween = new Tween<Transform>(
-      zero_scale_transform,
-      GRID_MOVE_ANIMATION_TIME,
-      Transform.lerp,
-    );
-    this.transform_tween.animate_to(transform);
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
     this.pips = [];
@@ -209,13 +198,13 @@ class Grid {
     return { centroid, symmetry_line_directions };
   }
 
-  draw(time_delta: number, interaction: Interaction | undefined): void {
+  draw(time_delta: number, interaction: Interaction | undefined, transform: Transform): void {
     const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.get())
       .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
     ctx.save();
-    this.transform().apply_to_canvas(ctx);
+    transform.apply_to_canvas(ctx);
 
     // Cell
     ctx.fillStyle = CELL_COLOR.to_canvas_color();
@@ -262,7 +251,7 @@ class Grid {
     if (this.is_drawing_line) {
       this.update_ideal_line(interaction!); // interactions are always defined when drawing a line
     }
-    this.update_display_line(time_delta);
+    this.update_display_line(time_delta, transform);
     let line = this.displayed_line;
 
     ctx.lineWidth = EDGE_WIDTH;
@@ -368,7 +357,7 @@ class Grid {
     }
   }
 
-  update_display_line(time_delta: number): void {
+  update_display_line(time_delta: number, transform: Transform): void {
     // Work out where we need to be animating to (this tells us whether to extend or contract the
     // line)
     let common_prefix_length = 0;
@@ -398,7 +387,7 @@ class Grid {
     let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
       Math.abs(this.ideal_line.disp_length - length_to_animate_to);
     let speed = Math.min(Math.max(lerp_speed_factor * distance_to_travel, min_speed), max_speed);
-    speed /= this.transform().scale;
+    speed /= transform.scale;
 
     // Update length
     if (length_to_animate_to < this.displayed_line.disp_length) {
@@ -424,10 +413,6 @@ class Grid {
     while (this.displayed_line.path.length >= this.displayed_line.disp_length + 2) {
       this.displayed_line.path.pop();
     }
-  }
-
-  transform(): Transform {
-    return this.transform_tween.get().then(game.camera_transform());
   }
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {

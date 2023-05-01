@@ -39,6 +39,10 @@ class Color {
     return `rgb(${Math.round(this.r)}, ${Math.round(this.g)}, ${Math.round(this.b)})`;
   }
 
+  to_canvas_color_with_alpha(alpha: number): string {
+    return `rgba(${Math.round(this.r)}, ${Math.round(this.g)}, ${Math.round(this.b)}, ${alpha})`;
+  }
+
   static lerp(c1: Color, c2: Color, t: number): Color {
     let r = lerp(c1.r, c2.r, t);
     let g = lerp(c1.g, c2.g, t);
@@ -98,11 +102,13 @@ class Tween<T> {
     this.random_delay_factor = 0;
   }
 
-  animate_to(target: T): void {
+  animate_to(target: T): Tween<T> {
     this.source = this.get();
     this.target = target;
     this._anim_start = Date.now() +
       Math.random() * 1000 * this._duration * this.random_delay_factor;
+
+    return this;
   }
 
   get(): T {

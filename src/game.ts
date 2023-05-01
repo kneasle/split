@@ -5,7 +5,11 @@ class Game {
   /* Puzzle world */
   puzzle_world_transform: Transform;
   puzzle_sets: PuzzleSet[];
-  fading_grids: Grid[];
+  fading_grids: {
+    position: Vec2;
+    scale_tween: Tween<number>;
+    grid: Grid;
+  }[];
 
   focussed_puzzle_tween: Tween<number | undefined>;
 
@@ -25,8 +29,8 @@ class Game {
   update(_time_delta: number, mouse: MouseUpdate): void {
     this.handle_mouse_interaction(mouse);
 
-    // Remove any grids which have fully faded
-    retain(this.fading_grids, (grid) => grid.transform().scale > 0);
+    // TODO: Remove any grids which have fully faded
+    // retain(this.fading_grids, (grid) => grid.transform().scale > 0);
 
     for (const ps of this.puzzle_sets) {
       let needs_sorting = false;
@@ -68,19 +72,23 @@ class Game {
         // Keep all of `grids_to_keep`
         ps.grids = grids_to_keep;
         // Fade the `fading_grids`
-        for (const g of grids_to_fade) {
-          const zero_scale_transform = Transform.scale(0).then(g.transform_tween.get());
-          g.transform_tween.animate_to(zero_scale_transform);
-        }
-        this.fading_grids.push(...grids_to_fade);
+        this.fading_grids.push(...grids_to_fade.map((grid: Grid) => {
+          return {
+            position: Vec2.ZERO,
+            scale_tween: new Tween<number>(1.0, GRID_FADE_ANIMATION_TIME, lerp).animate_to(0.0),
+            grid,
+          };
+        }));
         // Replenish the grids we lost
         for (let s = ps.grids.length; s < ps.puzzle.num_solutions; s++) {
-          ps.grids.push(new Grid(ps.puzzle, ps.grid_transform(s)));
+          // TODO:
+          // ps.grids.push(new Grid(ps.puzzle, ps.grid_transform(s)));
         }
 
-        for (let g = 0; g < ps.grids.length; g++) {
-          ps.grids[g].transform_tween.animate_to(ps.grid_transform(g));
-        }
+        // TODO: Animate all grids to their new positions
+        // for (let g = 0; g < ps.grids.length; g++) {
+        //   ps.grids[g].transform_tween.animate_to(ps.grid_transform(g));
+        // }
       }
     }
 
@@ -156,8 +164,12 @@ class Game {
     }
     // Grids
     let interaction = this.interaction(mouse);
-    for (const grid of this.fading_grids) {
-      grid.draw(time_delta, undefined);
+    for (const f of this.fading_grids) {
+      f.grid.draw(
+        time_delta,
+        undefined,
+        Transform.scale(f.scale_tween.get()).then_translate(f.position),
+      );
     }
     for (let p = 0; p < this.puzzle_sets.length; p++) {
       let puzzle = this.puzzle_sets[p];
@@ -166,7 +178,59 @@ class Game {
         if (interaction && interaction.puzzle_idx === p && interaction.grid_idx === g) {
           grid_interaction = interaction;
         }
-        puzzle.grids[g].draw(time_delta, grid_interaction);
+        puzzle.grids[g].draw(
+          time_delta,
+          grid_interaction,
+          puzzle.grid_transform(g).then(camera_transform),
+        );
+      }
+    }
+
+    /* OVERLAY LAYER */
+
+    // Overlay fader
+    if (this.overlay_factor() > 0) {
+      let fade_start_y = canvas.height * (OVERLAY_FADE_START + 1 - this.overlay_factor());
+      let fade_end_y = canvas.height * (OVERLAY_FADE_END + 1 - this.overlay_factor());
+
+      let gradient = ctx.createLinearGradient(0, fade_start_y, 0, fade_end_y);
+      gradient.addColorStop(0, BG_COLOR.to_canvas_color_with_alpha(0));
+      gradient.addColorStop(0.3, BG_COLOR.to_canvas_color_with_alpha(0.5));
+      gradient.addColorStop(1, BG_COLOR.to_canvas_color_with_alpha(1));
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, fade_start_y, canvas.width, canvas.height - fade_start_y);
+    }
+
+    // Puzzle grids
+    let puzzles_being_tweened: number[] = [];
+    if (
+      this.focussed_puzzle_tween.uneased_anim_factor() < 1.0 &&
+      this.focussed_puzzle_tween.source !== undefined
+    ) puzzles_being_tweened.push(this.focussed_puzzle_tween.source);
+    if (
+      this.focussed_puzzle_tween.uneased_anim_factor() > 0.0 &&
+      this.focussed_puzzle_tween.target !== undefined
+    ) puzzles_being_tweened.push(this.focussed_puzzle_tween.target);
+
+    if (puzzles_being_tweened.length === 1) {
+      // One puzzle is animating out
+      let puzzle_set = this.puzzle_sets[puzzles_being_tweened[0]];
+      const transform = this.unanimated_overlay_grid_transform(puzzle_set)
+        .then_translate(Vec2.DOWN.mul(canvas.height * (1 - this.overlay_factor())));
+      puzzle_set.overlay_grid.draw(time_delta, undefined, transform);
+    }
+    if (puzzles_being_tweened.length === 2) {
+      const anim_factor = this.focussed_puzzle_tween.eased_anim_factor();
+      // We are animating between two puzzles
+      for (let i = 0; i < 2; i++) {
+        let is_moving_right = puzzles_being_tweened[0] < puzzles_being_tweened[1];
+        let factor = (i - anim_factor) * (is_moving_right ? 1 : -1);
+
+        let puzzle_set = this.puzzle_sets[puzzles_being_tweened[i]];
+        let transform = this
+          .unanimated_overlay_grid_transform(puzzle_set)
+          .then_translate(Vec2.RIGHT.mul(canvas.width * factor));
+        puzzle_set.overlay_grid.draw(time_delta, undefined, transform);
       }
     }
   }
@@ -175,21 +239,24 @@ class Game {
 
   camera_transform(): Transform {
     let focus_transform = (puzzle_idx: number | undefined): Transform => {
-      if (puzzle_idx === undefined) return this.puzzle_world_transform;
+      if (puzzle_idx === undefined) {
+        return this.puzzle_world_transform
+          .then_translate(new Vec2(canvas.width / 2, canvas.height / 2));
+      }
 
       let puzzle = this.puzzle_sets[puzzle_idx];
       let scale = Math.min(
-        (1 - FOCUS_BORDER_HORIZONTAL * 2) * canvas.width / puzzle.width, // Scale to fill width
-        (1 - FOCUS_BORDER_VERTICAL * 2) * canvas.height / puzzle.height, // Scale to fill height
+        canvas.width / puzzle.width, // Scale to fill width
+        SOLVING_PUZZLE_LINE_HEIGHT * canvas.height / puzzle.height, // Scale to fill height
       );
-      return Transform.translate(Vec2.UP.mul(puzzle_idx)).then_scale(scale);
+      return Transform
+        .translate(Vec2.UP.mul(puzzle_idx - 0.0))
+        .then_scale(scale)
+        .then_translate(new Vec2(canvas.width / 2, canvas.height * SOLVING_HEADER_HEIGHT / 2));
     };
 
-    return this.focussed_puzzle_tween.get_with_lerp_fn((a, b, t) =>
-      Transform
-        .lerp(focus_transform(a), focus_transform(b), t)
-        .then_translate(new Vec2(canvas.width / 2, canvas.height / 2))
-    );
+    return this.focussed_puzzle_tween
+      .get_with_lerp_fn((a, b, t) => Transform.lerp(focus_transform(a), focus_transform(b), t));
   }
 
   /* INTERACTION */
@@ -202,7 +269,7 @@ class Game {
   }
 
   handle_mouse_move(mouse: MouseUpdate): void {
-    if (this.is_fully_unfocussed()) {
+    if (this.is_overlay_fully_off()) {
       // If no puzzle is focussed, mouse movement can only be used to pan the camera
       if (mouse.button_down) {
         this.puzzle_world_transform = this.puzzle_world_transform.then_translate(mouse.delta);
@@ -216,7 +283,7 @@ class Game {
   }
 
   handle_mouse_scroll(mouse: MouseUpdate): void {
-    if (!this.is_fully_unfocussed()) return;
+    if (!this.is_overlay_fully_off()) return;
 
     let desired_scale = this.puzzle_world_transform.scale;
     desired_scale *= Math.pow(ZOOM_FACTOR, -mouse.scroll_delta); // Perform the zoom
@@ -296,7 +363,7 @@ class Game {
 
       let grid = focussed_puzzle_grids[grid_idx];
       // ... for each vertex in that grid ...
-      let local_mouse = grid.transform().inv().transform_point(mouse.pos);
+      let local_mouse = mouse.pos; // TODO: grid.transform().inv().transform_point(mouse.pos);
       for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
         let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
         let dX = local_mouse.x - vert_x;
@@ -325,8 +392,34 @@ class Game {
     return this.puzzle_sets[interaction.puzzle_idx].grids[interaction.grid_idx];
   }
 
-  is_fully_unfocussed(): boolean {
-    return this.focussed_puzzle_tween.get() === undefined;
+  is_overlay_fully_off(): boolean {
+    return this.overlay_factor() === 0.0;
+  }
+
+  /// Returns the factor by which the puzzle overlay should be applied.  This inclusively ranges
+  /// from 0 (the overlay is fully off) to 1 (the overlay is fully on).
+  overlay_factor(): number {
+    let overlay_factor_from_puzzle_idx = (puzzle_idx: number | undefined) => {
+      return puzzle_idx === undefined ? 0 : 1;
+    };
+
+    return this.focussed_puzzle_tween.get_with_lerp_fn((a, b, t) =>
+      lerp(
+        overlay_factor_from_puzzle_idx(a),
+        overlay_factor_from_puzzle_idx(b),
+        t,
+      )
+    );
+  }
+
+  unanimated_overlay_grid_transform(puzzle_set: PuzzleSet): Transform {
+    let header_height = canvas.height * SOLVING_HEADER_HEIGHT; // Convert from ratio to pixels
+    let scale = Math.min(
+      canvas.width / (puzzle_set.puzzle.grid_width + 1),
+      (canvas.height - header_height) / (puzzle_set.puzzle.grid_height + 1),
+    );
+    let y_coord = lerp(header_height, canvas.height, 0.5);
+    return Transform.scale(scale).then_translate(new Vec2(canvas.width / 2, y_coord));
   }
 
   focussed_puzzle(): number | undefined {
@@ -385,7 +478,6 @@ let _puzzles = [
   { num_solutions: 2, pattern: "22.|1..|..1" },
   { num_solutions: 2, pattern: "222|1..|..1" },
   { num_solutions: 2, pattern: "222|1.1|..." },
-  { num_solutions: 2, pattern: "2.2|.2.|1.1" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: ".31|31.|1.." },

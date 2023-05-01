@@ -6,6 +6,7 @@ class PuzzleSet {
   grid_scale: number;
 
   grids: Grid[];
+  overlay_grid: Grid;
 
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
 
@@ -27,8 +28,9 @@ class PuzzleSet {
 
     this.grids = [];
     for (let i = 0; i < this.puzzle.num_solutions; i++) {
-      this.grids.push(new Grid(this.puzzle, this.grid_transform(i)));
+      this.grids.push(new Grid(this.puzzle));
     }
+    this.overlay_grid = new Grid(this.puzzle);
   }
 
   grid_transform(soln_number: number): Transform {

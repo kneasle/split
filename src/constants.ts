@@ -11,14 +11,17 @@ const INCORRECT_COLOR = Color.from_hex("#f77");
 // Animation
 const PUZZLE_FOCUS_TIME = 0.4; // Seconds
 const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
+const GRID_FADE_ANIMATION_TIME = 0.7; // Seconds
 
-// Puzzle Display
+// Puzzle Menu
 const PUZZLE_BOX_MAX_WIDTH = 4;
 const PUZZLE_BOX_MAX_HEIGHT = 1;
 const PUZZLE_TEXT_SIZE = 0.5; // Puzzle world units
-// Focussed Display
-const FOCUS_BORDER_VERTICAL = 0.2; // Factor of window height
-const FOCUS_BORDER_HORIZONTAL = 0.1; // Factor of window width
+// Solving Mode
+const SOLVING_HEADER_HEIGHT = 0.15; // Factor of window height
+const SOLVING_PUZZLE_LINE_HEIGHT = 0.1; // Factor of window height
+const OVERLAY_FADE_START = 0.12; // Factor of window height
+const OVERLAY_FADE_END = 0.18; // Factor of window height
 // Camera Interaction
 const ZOOM_FACTOR = 1.002; // Factor multiplied for every 'pixel' scrolled
 const MIN_ZOOM = 20;
