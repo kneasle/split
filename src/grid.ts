@@ -256,7 +256,6 @@ class Grid {
 
     ctx.lineWidth = EDGE_WIDTH;
     ctx.strokeStyle = line_color;
-    // TODO: I wonder if this looks too much like The Witness...
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();

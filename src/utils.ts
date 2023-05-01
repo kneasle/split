@@ -111,11 +111,15 @@ class Tween<T> {
     return this;
   }
 
+  jump_to(target: T): void {
+    this.source = target;
+    this.target = target;
+  }
+
   get(): T {
     return this.get_with_lerp_fn(this._lerp_fn);
   }
 
-  // TODO: Remove?
   get_with_lerp_fn<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
     return lerp_fn(this.source, this.target, this.eased_anim_factor());
   }
