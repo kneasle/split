@@ -149,10 +149,10 @@ class Game {
     // Puzzles
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       let puzzle_set = this.puzzle_sets[i];
-      ctx.strokeStyle = "black";
-      // Outline
       let rect = camera_transform.transform_rect(puzzle_set.overall_rect());
-      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      // DEBUG: Draw Outline
+      // ctx.strokeStyle = "black";
+      // ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
       // Puzzle Number
       ctx.fillStyle = "black";
       ctx.font = `${Math.round(camera_transform.scale * PUZZLE_TEXT_SIZE)}px monospace`;
@@ -250,6 +250,12 @@ class Game {
     if (interaction) {
       // If any puzzle is focussed, the grids should handle the mouse movement
       this.interaction_grid(interaction).handle_mouse_move(interaction, mouse);
+    }
+
+    // Handle puzzle refocussing
+    let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
+    for (let i = 0; i < this.puzzle_sets.length; i++) {
+      this.puzzle_sets[i].set_hovered(this.is_overlay_fully_off() && i === puzzle_under_cursor);
     }
   }
 

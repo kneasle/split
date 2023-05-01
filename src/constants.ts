@@ -12,6 +12,10 @@ const INCORRECT_COLOR = Color.from_hex("#f77");
 const PUZZLE_FOCUS_TIME = 0.4; // Seconds
 const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
 const GRID_FADE_ANIMATION_TIME = 0.7; // Seconds
+const HOVER_POP_TIME = 0.2; // Seconds
+const HOVER_POP_AMOUNT = 1.2; // Factor of normal scale
+const HOVER_POP_VARIATION_AMOUNT = 0.05; // Factor of normal scale
+const HOVER_POP_VARIATION_TIME = 1.5; // Seconds
 
 // Puzzle Menu
 const PUZZLE_BOX_MAX_WIDTH = 4;

@@ -141,6 +141,26 @@ class Tween<T> {
   }
 }
 
+class BoolTween {
+  private factor_tween: Tween<number>;
+
+  constructor(state: boolean, duration: number) {
+    this.factor_tween = new Tween(state ? 1 : 0, duration, lerp);
+  }
+
+  animate_to(state: boolean): BoolTween {
+    let new_factor = state ? 1 : 0;
+    if (this.factor_tween.target !== new_factor) {
+      this.factor_tween.animate_to(new_factor);
+    }
+    return this;
+  }
+
+  factor(): number {
+    return this.factor_tween.get();
+  }
+}
+
 function eased_anim_factor(start_time: number, duration: number): number {
   let anim_factor = uneased_anim_factor(start_time, duration);
   anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
