@@ -44,162 +44,12 @@ class Grid {
     }
   }
 
-  on_mouse_down(interaction: MousePos): boolean {
-    if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
-      // Mouse is cloes enough to a vertex to start a line
-      this.line_path = [interaction.vert_idx];
-      this.is_drawing_line = true;
-    } else if (
-      interaction.local_pos.x >= 0 && interaction.local_pos.x <= this.puzzle.grid_width &&
-      interaction.local_pos.y >= 0 && interaction.local_pos.x <= this.puzzle.grid_height
-    ) {
-      this.line_path = []; // Mouse is on the grid but can't start a line
-    } else {
-      return false; // Mouse is fully off the grid, so don't register the click
-    }
+  update(time_delta: number, mouse: MouseUpdate, transform: Transform): void {
+    let local_mouse_pos = transform.inv().transform_point(mouse.pos);
 
-    // If the grid was clicked, remove current solution
-    if (this.solution !== undefined) {
-      // Animate all pips back to their start locations
-      for (const pip of this.pips) {
-        pip.state_tween.animate_to(pip.unsolved_state);
-      }
-    }
-    this.solution = undefined;
-    this.solvedness.animate_to(0.0);
-
-    // Reset ideal line
-    this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
-    return true;
-  }
-
-  handle_mouse_move(interaction: MousePos, mouse: MouseUpdate): void {
-    if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
-
-    let new_vert = interaction.vert_idx;
-    let last_vert = this.line_path[this.line_path.length - 1];
-    let penultimate_vert = this.line_path[this.line_path.length - 2];
-
-    if (this.line_path.length == 0) return; // No line is being drawn
-    if (!mouse.button_down) return; // User is not dragging
-    if (new_vert === undefined) return; // Mouse not close enough to a vert
-    if (new_vert === last_vert) return; // Still on last vert
-    if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined) {
-      return; // Verts aren't connected
-    }
-
-    // Don't allow the user to add a line segment twice
-    for (let i = 0; i < this.line_path.length - 2; i++) {
-      if (this.line_path[i] === last_vert && this.line_path[i + 1] === new_vert) return;
-      if (this.line_path[i] === new_vert && this.line_path[i + 1] === last_vert) return;
-    }
-
-    if (new_vert === penultimate_vert) {
-      this.line_path.pop(); // Moved backward, 'unwind' the line
-    } else {
-      this.line_path.push(new_vert); // Moved forward, 'extend' the line
-    }
-  }
-
-  on_mouse_up(): void {
-    if (!this.is_drawing_line) return; // Mouse ups don't matter if we aren't drawing a line
-
-    this.is_drawing_line = false;
-
-    // Check the user's solution
-    const is_line_loop = this.line_path.length > 1 &&
-      this.line_path[0] === this.line_path[this.line_path.length - 1] &&
-      this.ideal_line.disp_length === this.ideal_line.path.length - 1;
-    if (!is_line_loop) {
-      if (this.ideal_line.disp_length < MIN_LINE_LENGTH_TO_KEEP) {
-        this.ideal_line = { path: [], disp_length: 0, was_short_line: true };
-      }
-      return; // Can't solve the puzzle if the line doesn't form a loop
-    }
-    this.solution = this.puzzle.get_solution(this.line_path);
-    this.solvedness.animate_to(1.0);
-
-    // Decide where to move the pips
-    for (const region of this.solution.regions) {
-      if (region.pips === 0) continue;
-      // Compute the centre of the region
-      let { centroid: region_centre, symmetry_line_directions } = this.region_symmetry(region);
-      // Sort cells by their distance from the centre of the region.  This is the order that we'll
-      // add the pips
-      // TODO: Fancier way to determine where the pips are assigned:
-      //        - Try to make overall pattern symmetric
-      let _this = this;
-      const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
-        let cell_centre = _this.puzzle.cells[cell_idx].centre;
-        let distances_to_symmetry_lines = symmetry_line_directions
-          .map((dir) => cell_centre.distance_to_line(region_centre, dir));
-        let puzzle_centre = Vec2.ZERO;
-        return [
-          Math.min(...distances_to_symmetry_lines),
-          Vec2.distance_between(cell_centre, region_centre),
-          Vec2.distance_between(cell_centre, puzzle_centre),
-          -Math.abs(Math.ceil(cell_centre.x) + Math.ceil(cell_centre.y)) % 2, // Checkerboard
-        ];
-      });
-
-      // Group pips into cells
-      let pip_idxs_in_region = region.cells.flatMap((idx: number) => this.pip_idxs_per_cell[idx]);
-      for (const cell_idx of cells_to_add_pips_to) {
-        // Reserve up to 10 pips to go in this cell
-        const num_pips = Math.min(pip_idxs_in_region.length, 10);
-        const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
-        pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
-        // Animate them to their new positions
-        // TODO: Don't move pips which exist in both the solved and unsolved puzzles
-        for (let p = 0; p < num_pips; p++) {
-          const { x, y } = this.pip_coords(cell_idx, p, num_pips);
-          this.pips[pip_idxs[p]].state_tween.animate_to({ x, y, color: this.solution_color() });
-        }
-      }
-    }
-  }
-
-  private region_symmetry(
-    region: Region,
-  ): { centroid: Vec2; symmetry_line_directions: Vec2[] } {
-    // Compute region centroid
-    let total = Vec2.ZERO;
-    for (const c of region.cells) {
-      let cell = this.puzzle.cells[c];
-      total = total.add(cell.centre);
-    }
-    let centroid = total.div(region.cells.length);
-
-    // Find the line of symmetry (if it exists)
-    let lines = [
-      new Vec2(1, 1), // Diagonal top-left <-> bottom-right
-      new Vec2(1, -1), // Diagonal top-right <-> bottom-left
-      new Vec2(0, 1), // Horizontal
-      new Vec2(1, 0), // Vertical
-    ];
-    let symmetry_line_directions = lines.filter((direction) => {
-      // A line of symmetry is valid if every cell gets reflected to another existing cell
-      for (const c of region.cells) {
-        let reflected_centre = this.puzzle.cells[c].centre.reflect_in_line(centroid, direction);
-        let found_reflected_cell = false;
-        for (const c1 of region.cells) {
-          if (Vec2.distance_between(this.puzzle.cells[c1].centre, reflected_centre) < 0.00001) {
-            found_reflected_cell = true;
-            break;
-          }
-        }
-        if (!found_reflected_cell) {
-          return false; // Cell has no reflection, so not a line of symmetry
-        }
-      }
-      return true;
-    });
-
-    return { centroid, symmetry_line_directions };
-  }
-
-  update(time_delta: number, mouse_update: MouseUpdate, transform: Transform): void {
-    let local_mouse_pos = transform.inv().transform_point(mouse_update.pos);
+    if (mouse.button_clicked) this.on_mouse_down(local_mouse_pos);
+    if (mouse.button_released) this.on_mouse_up();
+    this.handle_mouse_move(local_mouse_pos, mouse);
 
     if (this.is_drawing_line) {
       this.update_ideal_line(local_mouse_pos);
@@ -285,6 +135,124 @@ class Grid {
     }
 
     ctx.restore();
+  }
+
+  /* ===== MOUSE HANDLING ===== */
+
+  on_mouse_down(local_mouse_pos: Vec2): boolean {
+    let nearestVert = this.puzzle.nearest_vertex(local_mouse_pos);
+
+    if (nearestVert.distance < VERTEX_INTERACTION_RADIUS) {
+      // Mouse is close enough to a vertex to start a line
+      this.line_path = [nearestVert.vert_idx];
+      this.is_drawing_line = true;
+    } else if (
+      local_mouse_pos.x >= 0 && local_mouse_pos.x <= this.puzzle.grid_width &&
+      local_mouse_pos.y >= 0 && local_mouse_pos.y <= this.puzzle.grid_height
+    ) {
+      this.line_path = []; // Mouse is on the grid but can't start a line
+    } else {
+      return false; // Mouse is fully off the grid, so don't register the click
+    }
+
+    // If the grid was clicked, remove current solution
+    if (this.solution !== undefined) {
+      // Animate all pips back to their start locations
+      for (const pip of this.pips) {
+        pip.state_tween.animate_to(pip.unsolved_state);
+      }
+    }
+    this.solution = undefined;
+    this.solvedness.animate_to(0.0);
+
+    // Reset ideal line
+    this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
+    return true;
+  }
+
+  handle_mouse_move(local_mouse_pos: Vec2, mouse: MouseUpdate): void {
+    if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
+
+    let new_vert = this.puzzle.nearest_vertex(local_mouse_pos).vert_idx;
+    let last_vert = this.line_path[this.line_path.length - 1];
+    let penultimate_vert = this.line_path[this.line_path.length - 2];
+
+    if (this.line_path.length == 0) return; // No line is being drawn
+    if (!mouse.button_down) return; // User is not dragging
+    if (new_vert === last_vert) return; // Still on last vert
+    if (this.puzzle.connecting_edge(last_vert, new_vert) === undefined) {
+      return; // Verts aren't connected
+    }
+
+    // Don't allow the user to add a line segment twice
+    for (let i = 0; i < this.line_path.length - 2; i++) {
+      if (this.line_path[i] === last_vert && this.line_path[i + 1] === new_vert) return;
+      if (this.line_path[i] === new_vert && this.line_path[i + 1] === last_vert) return;
+    }
+
+    if (new_vert === penultimate_vert) {
+      this.line_path.pop(); // Moved backward, 'unwind' the line
+    } else {
+      this.line_path.push(new_vert); // Moved forward, 'extend' the line
+    }
+  }
+
+  on_mouse_up(): void {
+    if (!this.is_drawing_line) return; // Mouse ups don't matter if we aren't drawing a line
+
+    this.is_drawing_line = false;
+
+    // Check the user's solution
+    const is_line_loop = this.line_path.length > 1 &&
+      this.line_path[0] === this.line_path[this.line_path.length - 1] &&
+      this.ideal_line.disp_length === this.ideal_line.path.length - 1;
+    if (!is_line_loop) {
+      if (this.ideal_line.disp_length < MIN_LINE_LENGTH_TO_KEEP) {
+        this.ideal_line = { path: [], disp_length: 0, was_short_line: true };
+      }
+      return; // Can't solve the puzzle if the line doesn't form a loop
+    }
+    this.solution = this.puzzle.get_solution(this.line_path);
+    this.solvedness.animate_to(1.0);
+
+    // Decide where to move the pips
+    for (const region of this.solution.regions) {
+      if (region.pips === 0) continue;
+      // Compute the centre of the region
+      let { centroid: region_centre, symmetry_line_directions } = this.region_symmetry(region);
+      // Sort cells by their distance from the centre of the region.  This is the order that we'll
+      // add the pips
+      // TODO: Fancier way to determine where the pips are assigned:
+      //        - Try to make overall pattern symmetric
+      let _this = this;
+      const cells_to_add_pips_to = sort_by_key(region.cells, (cell_idx: number) => {
+        let cell_centre = _this.puzzle.cells[cell_idx].centre;
+        let distances_to_symmetry_lines = symmetry_line_directions
+          .map((dir) => cell_centre.distance_to_line(region_centre, dir));
+        let puzzle_centre = Vec2.ZERO;
+        return [
+          Math.min(...distances_to_symmetry_lines),
+          Vec2.distance_between(cell_centre, region_centre),
+          Vec2.distance_between(cell_centre, puzzle_centre),
+          -Math.abs(Math.ceil(cell_centre.x) + Math.ceil(cell_centre.y)) % 2, // Checkerboard
+        ];
+      });
+
+      // Group pips into cells
+      let pip_idxs_in_region = region.cells.flatMap((idx: number) => this.pip_idxs_per_cell[idx]);
+      for (const cell_idx of cells_to_add_pips_to) {
+        // Reserve up to 10 pips to go in this cell
+        const num_pips = Math.min(pip_idxs_in_region.length, 10);
+        const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
+        pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
+        // Animate them to their new positions
+        // TODO: Don't move pips which exist in both the solved and unsolved puzzles
+        for (let p = 0; p < num_pips; p++) {
+          const { x, y } = this.pip_coords(cell_idx, p, num_pips);
+          this.pips[pip_idxs[p]].state_tween.animate_to({ x, y, color: this.solution_color() });
+        }
+      }
+    }
   }
 
   /* ===== LINE HANDLING ===== */
@@ -407,6 +375,45 @@ class Grid {
   }
 
   /* ===== HELPERS ===== */
+
+  private region_symmetry(
+    region: Region,
+  ): { centroid: Vec2; symmetry_line_directions: Vec2[] } {
+    // Compute region centroid
+    let total = Vec2.ZERO;
+    for (const c of region.cells) {
+      let cell = this.puzzle.cells[c];
+      total = total.add(cell.centre);
+    }
+    let centroid = total.div(region.cells.length);
+
+    // Find the lines of symmetry (if they exists)
+    let lines = [
+      new Vec2(1, 1), // Diagonal top-left <-> bottom-right
+      new Vec2(1, -1), // Diagonal top-right <-> bottom-left
+      new Vec2(0, 1), // Horizontal
+      new Vec2(1, 0), // Vertical
+    ];
+    let symmetry_line_directions = lines.filter((direction) => {
+      // A line of symmetry is valid if every cell gets reflected to another existing cell
+      for (const c of region.cells) {
+        let reflected_centre = this.puzzle.cells[c].centre.reflect_in_line(centroid, direction);
+        let found_reflected_cell = false;
+        for (const c1 of region.cells) {
+          if (Vec2.distance_between(this.puzzle.cells[c1].centre, reflected_centre) < 0.00001) {
+            found_reflected_cell = true;
+            break;
+          }
+        }
+        if (!found_reflected_cell) {
+          return false; // Cell has no reflection, so this is not a line of symmetry
+        }
+      }
+      return true;
+    });
+
+    return { centroid, symmetry_line_directions };
+  }
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
     const cell = this.puzzle.cells[cell_idx];

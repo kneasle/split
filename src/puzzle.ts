@@ -256,7 +256,7 @@ type NearestEdge = {
 };
 
 type NearestVert = {
-  vert_idx: number;
   point: Vec2;
+  vert_idx: number;
   distance: number;
 };
