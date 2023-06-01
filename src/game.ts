@@ -24,8 +24,15 @@ class Game {
     this.overlay_tween = new Tween<number>(0, PUZZLE_FOCUS_TIME, lerp);
   }
 
-  update(_time_delta: number, mouse: MouseUpdate): void {
+  update(time_delta: number, mouse: MouseUpdate): void {
     this.handle_mouse_interaction(mouse);
+
+    let puzzle_idx = this.focussed_puzzle();
+    if (puzzle_idx !== undefined) {
+      let focussed_puzzle_set = this.puzzle_sets[puzzle_idx];
+      let transform = this.unanimated_overlay_grid_transform(focussed_puzzle_set);
+      focussed_puzzle_set.overlay_grid.update(time_delta, mouse, transform);
+    }
 
     // TODO: Remove any grids which have fully faded
     // retain(this.fading_grids, (grid) => grid.transform().scale > 0);
@@ -139,7 +146,7 @@ class Game {
     */
   }
 
-  draw(time_delta: number, mouse: MouseUpdate): void {
+  draw(): void {
     /* BACKGROUND */
     ctx.fillStyle = BG_COLOR.to_canvas_color();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -161,26 +168,13 @@ class Game {
       ctx.fillText(`#${i + 1}`, rect.x - camera_transform.scale * 0.1, rect.y + rect.h / 2);
     }
     // Grids
-    let interaction = this.interaction(mouse);
     for (const f of this.fading_grids) {
-      f.grid.draw(
-        time_delta,
-        undefined,
-        Transform.scale(f.scale_tween.get()).then_translate(f.position),
-      );
+      f.grid.draw(Transform.scale(f.scale_tween.get()).then_translate(f.position));
     }
     for (let p = 0; p < this.puzzle_sets.length; p++) {
       let puzzle = this.puzzle_sets[p];
       for (let g = 0; g < puzzle.grids.length; g++) {
-        let grid_interaction = undefined;
-        if (interaction && interaction.puzzle_idx === p && interaction.grid_idx === g) {
-          grid_interaction = interaction;
-        }
-        puzzle.grids[g].draw(
-          time_delta,
-          grid_interaction,
-          puzzle.grid_transform(g).then(camera_transform),
-        );
+        puzzle.grids[g].draw(puzzle.grid_transform(g).then(camera_transform));
       }
     }
 
@@ -211,7 +205,7 @@ class Game {
             canvas.height * (1 - this.overlay_factor()), // Animate overlay from bottom
           ),
         );
-      puzzle_set.overlay_grid.draw(time_delta, undefined, transform);
+      puzzle_set.overlay_grid.draw(transform);
     }
   }
 
@@ -233,129 +227,45 @@ class Game {
   /* INTERACTION */
 
   handle_mouse_interaction(mouse: MouseUpdate): void {
-    this.handle_mouse_move(mouse);
-    this.handle_mouse_scroll(mouse);
-    if (mouse.button_clicked) this.on_mouse_down(mouse);
-    if (mouse.button_released) this.on_mouse_up(mouse);
-  }
-
-  handle_mouse_move(mouse: MouseUpdate): void {
     if (this.is_overlay_fully_off()) {
-      // If no puzzle is focussed, mouse movement can only be used to pan the camera
+      /* Handle this input as an interaction with the puzzle menu */
+
+      // Mouse movement when clicking will pan the camera
       if (mouse.button_down) {
         this.puzzle_world_transform = this.puzzle_world_transform.then_translate(mouse.delta);
       }
-    }
-    let interaction = this.interaction(mouse);
-    if (interaction) {
-      // If any puzzle is focussed, the grids should handle the mouse movement
-      this.interaction_grid(interaction).handle_mouse_move(interaction, mouse);
+
+      // Scrolling zooms the puzzle window
+      let desired_scale = this.puzzle_world_transform.scale;
+      desired_scale *= Math.pow(ZOOM_FACTOR, -mouse.scroll_delta); // Change the zoom
+      desired_scale = Math.min(Math.max(desired_scale, MIN_ZOOM), MAX_ZOOM); // Clamp the zoom
+      // TODO: Zoom around the cursor's location
+      this.puzzle_world_transform = this
+        .puzzle_world_transform
+        .then_scale(desired_scale / this.puzzle_world_transform.scale);
+
+      // Clicking will focus the puzzle currently under the cursor
+      if (mouse.button_clicked) {
+        let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
+        if (puzzle_under_cursor !== undefined) {
+          this.focussed_puzzle_tween.jump_to(puzzle_under_cursor);
+          this.overlay_tween.animate_to(1);
+        }
+      }
     }
 
-    // Handle puzzle refocussing
+    // Always handle puzzle refocussing (even when editing a puzzle, since all puzzles are marked
+    // as not hovered)
     let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       this.puzzle_sets[i].set_hovered(this.is_overlay_fully_off() && i === puzzle_under_cursor);
     }
   }
 
-  handle_mouse_scroll(mouse: MouseUpdate): void {
-    if (!this.is_overlay_fully_off()) return;
-
-    let desired_scale = this.puzzle_world_transform.scale;
-    desired_scale *= Math.pow(ZOOM_FACTOR, -mouse.scroll_delta); // Perform the zoom
-    desired_scale = Math.min(Math.max(desired_scale, MIN_ZOOM), MAX_ZOOM); // Clamp the zoom
-    // TODO: Zoom around the cursor's location
-    this.puzzle_world_transform = this
-      .puzzle_world_transform
-      .then_scale(desired_scale / this.puzzle_world_transform.scale);
-  }
-
-  on_mouse_down(mouse: MouseUpdate): void {
-    // TODO: If a puzzle will capture this click, don't use it to change the puzzle
-    let focussed_puzzle = this.focussed_puzzle();
-    let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
-    if (focussed_puzzle !== undefined && puzzle_under_cursor === focussed_puzzle) {
-      // The click should be forwarded to the puzzle
-      let interaction = this.interaction(mouse)!;
-      this.interaction_grid(interaction).on_mouse_down(interaction);
-    } else {
-      // If no puzzle captures this input, interpret the click as a refocus
-      this.refocus_to_puzzle_under_cursor(mouse);
-    }
-  }
-
-  on_mouse_up(mouse: MouseUpdate): void {
-    let interaction = this.interaction(mouse);
-    if (interaction) {
-      this.interaction_grid(interaction).on_mouse_up();
-    }
-  }
-
-  refocus_to_puzzle_under_cursor(mouse: MouseUpdate): void {
-    if (!this.is_overlay_fully_off()) return; // Only refocus if the overlay is off
-
-    // If we click on a puzzle, focus on it
-    let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
-    if (puzzle_under_cursor !== undefined) {
-      this.focussed_puzzle_tween.jump_to(puzzle_under_cursor);
-      this.overlay_tween.animate_to(1);
-    }
-  }
-
-  // Find out what the mouse must be interacting with (in this case, the user is defined to be
-  // interacting with the nearest vertex to the mouse).
-  interaction(mouse: MouseUpdate): Interaction | undefined {
-    // Get the focussed set of puzzle grids (early returning if no puzzle is focussed)
-    let focussed_puzzle = this.focussed_puzzle();
-    if (focussed_puzzle === undefined) return undefined;
-    let focussed_puzzle_grids = this.puzzle_sets[focussed_puzzle].grids;
-
-    // Check if a grid is having a line drawn.  If so, we should always interact with it, however
-    // far away the mouse is.
-    let grid_being_drawn = undefined;
-    for (let grid_idx = 0; grid_idx < focussed_puzzle_grids.length; grid_idx++) {
-      if (focussed_puzzle_grids[grid_idx].is_drawing_line) {
-        grid_being_drawn = grid_idx;
-        break;
-      }
-    }
-
-    // For each grid ...
-    let interaction = undefined;
-    for (let grid_idx = 0; grid_idx < focussed_puzzle_grids.length; grid_idx++) {
-      // If a grid is being drawn, only allow interaction with that grid
-      if (grid_being_drawn !== undefined && grid_being_drawn !== grid_idx) continue;
-
-      let grid = focussed_puzzle_grids[grid_idx];
-      // ... for each vertex in that grid ...
-      let local_mouse = mouse.pos; // TODO: grid.transform().inv().transform_point(mouse.pos);
-      for (let vert_idx = 0; vert_idx < grid.puzzle.verts.length; vert_idx++) {
-        let { x: vert_x, y: vert_y } = grid.puzzle.verts[vert_idx];
-        let dX = local_mouse.x - vert_x;
-        let dY = local_mouse.y - vert_y;
-        let dist = Math.sqrt(dX * dX + dY * dY);
-        // ... if this is the new closest vertex, update the interaction
-        if (interaction === undefined || dist < interaction.vert_distance) {
-          interaction = {
-            puzzle_idx: focussed_puzzle,
-            grid_idx,
-
-            local_pos: local_mouse,
-            vert_idx,
-            vert_distance: dist,
-          };
-        }
-      }
-    }
-
-    return interaction;
-  }
-
   /* HELPER FUNCTIONS */
 
-  interaction_grid(interaction: Interaction): Grid {
-    return this.puzzle_sets[interaction.puzzle_idx].grids[interaction.grid_idx];
+  is_overlay_fully_on(): boolean {
+    return this.overlay_factor() === 1.0;
   }
 
   is_overlay_fully_off(): boolean {
@@ -379,6 +289,8 @@ class Game {
   }
 
   focussed_puzzle(): number | undefined {
+    if (!this.is_overlay_fully_on()) return undefined; // Overlay off => no puzzle focussed
+
     let puzzle_idx = this.focussed_puzzle_tween.get();
     return (puzzle_idx % 1 === 0) ? puzzle_idx : undefined;
   }
@@ -555,6 +467,8 @@ function on_resize() {
 class MouseEventHandler {
   // TODO: Handle the case where a user clicks and unclicks in the same frame?
 
+  // We start the mouse miles off the screen so that vertices close to the top-left corner of the
+  // screen can't be erroneously selected before the user moves their mouse into the window.
   private current_state: MouseState = {
     pos: new Vec2(-10000, -10000),
     button: false,
@@ -615,7 +529,11 @@ class MouseEventHandler {
   }
 }
 
-type MouseState = { pos: Vec2; button: boolean };
+type MouseState = {
+  pos: Vec2;
+  button: boolean;
+};
+
 type MouseUpdate = {
   readonly pos: Vec2;
   readonly delta: Vec2;
@@ -627,8 +545,6 @@ type MouseUpdate = {
   readonly scroll_delta: number;
 };
 
-// We start the mouse miles off the screen so that vertices close to the top-left corner of the
-// screen can't be erroneously selected before the user moves their mouse into the window.
 let mouse_event_handler = new MouseEventHandler();
 
 /* START GAMELOOP */
@@ -641,7 +557,7 @@ function frame(): void {
   last_frame_time = Date.now();
 
   game.update(time_delta, mouse_update);
-  game.draw(time_delta, mouse_update);
+  game.draw();
   window.requestAnimationFrame(frame);
 }
 frame();

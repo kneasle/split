@@ -206,6 +206,23 @@ class Puzzle {
     return nearest!;
   }
 
+  nearest_vertex(point: Vec2): NearestVert {
+    let nearest_vert = undefined;
+
+    for (let vert_idx = 0; vert_idx < this.verts.length; vert_idx++) {
+      let { x: vert_x, y: vert_y } = this.verts[vert_idx];
+      let dX = point.x - vert_x;
+      let dY = point.y - vert_y;
+      let distance = Math.sqrt(dX * dX + dY * dY);
+      // ... if this is the new closest vertex, update the interaction
+      if (nearest_vert === undefined || distance < nearest_vert.distance) {
+        nearest_vert = { point, vert_idx, distance };
+      }
+    }
+
+    return nearest_vert!; // This is only 'undefined' if puzzle has no vertices
+  }
+
   connecting_edge(vert_1: number, vert_2: number): number | undefined {
     for (let i = 0; i < this.edges.length; i++) {
       const { v1, v2 } = this.edges[i];
@@ -234,6 +251,12 @@ type Region = { pips: number; cells: number[] };
 type NearestEdge = {
   edge_idx: number;
   lambda: number;
+  point: Vec2;
+  distance: number;
+};
+
+type NearestVert = {
+  vert_idx: number;
   point: Vec2;
   distance: number;
 };

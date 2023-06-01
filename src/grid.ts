@@ -44,7 +44,7 @@ class Grid {
     }
   }
 
-  on_mouse_down(interaction: Interaction): boolean {
+  on_mouse_down(interaction: MousePos): boolean {
     if (interaction.vert_distance < VERTEX_INTERACTION_RADIUS) {
       // Mouse is cloes enough to a vertex to start a line
       this.line_path = [interaction.vert_idx];
@@ -73,7 +73,7 @@ class Grid {
     return true;
   }
 
-  handle_mouse_move(interaction: Interaction, mouse: MouseUpdate): void {
+  handle_mouse_move(interaction: MousePos, mouse: MouseUpdate): void {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
     let new_vert = interaction.vert_idx;
@@ -198,7 +198,16 @@ class Grid {
     return { centroid, symmetry_line_directions };
   }
 
-  draw(time_delta: number, interaction: Interaction | undefined, transform: Transform): void {
+  update(time_delta: number, mouse_update: MouseUpdate, transform: Transform): void {
+    let local_mouse_pos = transform.inv().transform_point(mouse_update.pos);
+
+    if (this.is_drawing_line) {
+      this.update_ideal_line(local_mouse_pos);
+    }
+    this.update_display_line(time_delta, transform.scale);
+  }
+
+  draw(transform: Transform): void {
     const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.get())
       .to_canvas_color();
 
@@ -230,28 +239,12 @@ class Grid {
 
     // Vertices
     for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
-      // Decide if the vertex should be line coloured
-      let should_be_line_colored;
-      if (this.line_path.length <= 1) {
-        should_be_line_colored = interaction &&
-          v_idx === interaction.vert_idx &&
-          (this.is_drawing_line || interaction.vert_distance <= VERTEX_INTERACTION_RADIUS);
-      } else {
-        let start_vert = this.line_path[0];
-        let end_vert = this.line_path[this.line_path.length - 1];
-        should_be_line_colored = v_idx === start_vert && start_vert !== end_vert;
-      }
-
       const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = should_be_line_colored ? line_color : GRID_COLOR.to_canvas_color();
+      ctx.fillStyle = GRID_COLOR.to_canvas_color();
       ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
 
     // Line
-    if (this.is_drawing_line) {
-      this.update_ideal_line(interaction!); // interactions are always defined when drawing a line
-    }
-    this.update_display_line(time_delta, transform);
     let line = this.displayed_line;
 
     ctx.lineWidth = EDGE_WIDTH;
@@ -294,12 +287,11 @@ class Grid {
     ctx.restore();
   }
 
-  update_ideal_line(interaction: Interaction) {
+  /* ===== LINE HANDLING ===== */
+
+  update_ideal_line(local_mouse_pos: Vec2) {
     // Firstly, get the closest edge intersection to mouse, and flip the vertices if necessary
-    let edge_data = this.puzzle.nearest_edge_point_extending_line(
-      interaction.local_pos,
-      this.line_path,
-    );
+    let edge_data = this.puzzle.nearest_edge_point_extending_line(local_mouse_pos, this.line_path);
     let { v1, v2 } = this.puzzle.edges[edge_data.edge_idx];
     let lerp_factor = edge_data.lambda;
     // If needed, reverse the edge so that `v1` is equal the last vertex in `this.line_path`
@@ -356,7 +348,7 @@ class Grid {
     }
   }
 
-  update_display_line(time_delta: number, transform: Transform): void {
+  update_display_line(time_delta: number, grid_scale: number): void {
     // Work out where we need to be animating to (this tells us whether to extend or contract the
     // line)
     let common_prefix_length = 0;
@@ -386,7 +378,7 @@ class Grid {
     let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
       Math.abs(this.ideal_line.disp_length - length_to_animate_to);
     let speed = Math.min(Math.max(lerp_speed_factor * distance_to_travel, min_speed), max_speed);
-    speed /= transform.scale;
+    speed /= grid_scale;
 
     // Update length
     if (length_to_animate_to < this.displayed_line.disp_length) {
@@ -413,6 +405,8 @@ class Grid {
       this.displayed_line.path.pop();
     }
   }
+
+  /* ===== HELPERS ===== */
 
   pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
     const cell = this.puzzle.cells[cell_idx];
@@ -447,10 +441,7 @@ type LerpedLine = {
   was_short_line: boolean;
 };
 
-type Interaction = {
-  puzzle_idx: number;
-  grid_idx: number;
-
+type MousePos = {
   local_pos: Vec2;
   vert_idx: number;
   vert_distance: number;
