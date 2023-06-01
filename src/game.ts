@@ -12,7 +12,7 @@ class Game {
   }[];
 
   focussed_puzzle_tween: Tween<number>; // Tweens between puzzle numbers
-  overlay_tween: Tween<number>; // Tweens between 0 (overlay off) and 1 (overlay on)
+  overlay_tween: BoolTween; // Tweens between false (overlay off) and true (overlay on)
 
   constructor(puzzle_sets: PuzzleSet[]) {
     // Puzzle world
@@ -21,7 +21,7 @@ class Game {
     this.fading_grids = [];
 
     this.focussed_puzzle_tween = new Tween<number>(0, PUZZLE_FOCUS_TIME, lerp);
-    this.overlay_tween = new Tween<number>(0, PUZZLE_FOCUS_TIME, lerp);
+    this.overlay_tween = new BoolTween(false, PUZZLE_FOCUS_TIME);
   }
 
   update(time_delta: number, mouse: MouseUpdate): void {
@@ -221,7 +221,7 @@ class Game {
       .then_scale(scale)
       .then_translate(new Vec2(canvas.width / 2, canvas.height * SOLVING_HEADER_HEIGHT / 2));
 
-    return Transform.lerp(unfocussed_transform, focussed_transform, this.overlay_tween.get());
+    return Transform.lerp(unfocussed_transform, focussed_transform, this.overlay_tween.factor());
   }
 
   /* INTERACTION */
@@ -249,7 +249,7 @@ class Game {
         let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
         if (puzzle_under_cursor !== undefined) {
           this.focussed_puzzle_tween.jump_to(puzzle_under_cursor);
-          this.overlay_tween.animate_to(1);
+          this.overlay_tween.animate_to(true);
         }
       }
     }
@@ -275,7 +275,7 @@ class Game {
   /// Returns the factor by which the puzzle overlay should be applied.  This inclusively ranges
   /// from 0 (the overlay is fully off) to 1 (the overlay is fully on).
   overlay_factor(): number {
-    return this.overlay_tween.get();
+    return this.overlay_tween.factor();
   }
 
   unanimated_overlay_grid_transform(puzzle_set: PuzzleSet): Transform {
