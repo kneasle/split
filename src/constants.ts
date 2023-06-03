@@ -13,7 +13,7 @@ const PUZZLE_FOCUS_TIME = 0.4; // Seconds
 const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
 const GRID_FADE_ANIMATION_TIME = 0.7; // Seconds
 const HOVER_POP_TIME = 0.2; // Seconds
-const HOVER_POP_AMOUNT = 1.2; // Factor of normal scale
+const HOVER_POP_AMOUNT = 1.4; // Factor of normal puzzle size
 const HOVER_POP_VARIATION_AMOUNT = 0.05; // Factor of normal scale
 const HOVER_POP_VARIATION_TIME = 1.5; // Seconds
 
@@ -22,10 +22,10 @@ const PUZZLE_BOX_MAX_WIDTH = 4;
 const PUZZLE_BOX_MAX_HEIGHT = 1;
 const PUZZLE_TEXT_SIZE = 0.5; // Puzzle world units
 // Solving Mode
-const SOLVING_HEADER_HEIGHT = 0.15; // Factor of window height
-const SOLVING_PUZZLE_LINE_HEIGHT = 0.1; // Factor of window height
-const OVERLAY_FADE_START = 0.12; // Factor of window height
-const OVERLAY_FADE_END = 0.18; // Factor of window height
+const SOLVING_HEADER_HEIGHT = 0.2; // Factor of window height
+const SOLVING_PUZZLE_LINE_HEIGHT = 0.7; // Factor of header height
+const OVERLAY_FADE_START = 0.8; // Factor of header height
+const OVERLAY_FADE_END = 1.2; // Factor of header height
 // Camera Interaction
 const ZOOM_FACTOR = 1.002; // Factor multiplied for every 'pixel' scrolled
 const MIN_ZOOM = 20;

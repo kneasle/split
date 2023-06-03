@@ -182,8 +182,10 @@ class Game {
 
     // Overlay fader
     if (this.overlay_factor() > 0) {
-      let fade_start_y = canvas.height * (OVERLAY_FADE_START + 1 - this.overlay_factor());
-      let fade_end_y = canvas.height * (OVERLAY_FADE_END + 1 - this.overlay_factor());
+      let fade_start_y = canvas.height *
+        (OVERLAY_FADE_START * SOLVING_HEADER_HEIGHT + 1 - this.overlay_factor());
+      let fade_end_y = canvas.height *
+        (OVERLAY_FADE_END * SOLVING_HEADER_HEIGHT + 1 - this.overlay_factor());
 
       let gradient = ctx.createLinearGradient(0, fade_start_y, 0, fade_end_y);
       gradient.addColorStop(0, BG_COLOR.to_canvas_color_with_alpha(0));
@@ -215,7 +217,8 @@ class Game {
     let unfocussed_transform = this.puzzle_world_transform
       .then_translate(new Vec2(canvas.width / 2, canvas.height / 2));
 
-    const scale = SOLVING_PUZZLE_LINE_HEIGHT * canvas.height / PUZZLE_BOX_MAX_HEIGHT; // Scale to fill height
+    const scale = SOLVING_PUZZLE_LINE_HEIGHT * SOLVING_HEADER_HEIGHT * canvas.height /
+      PUZZLE_BOX_MAX_HEIGHT; // Scale to fill height
     let focussed_transform = Transform
       .translate(Vec2.UP.mul(this.focussed_puzzle_tween.get()))
       .then_scale(scale)
