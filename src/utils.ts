@@ -161,6 +161,31 @@ class BoolTween {
   }
 }
 
+class HoverTween {
+  private bool_tween: BoolTween;
+  private bounce_start_time: number;
+
+  constructor(duration = HOVER_POP_TIME) {
+    this.bool_tween = new BoolTween(false, duration);
+    this.bounce_start_time = 0;
+  }
+
+  set_hovered(hovered: boolean): void {
+    if (hovered && this.bool_tween.factor() === 0.0) {
+      // If we're starting a hover, then reset the bounce time
+      this.bounce_start_time = Date.now();
+    }
+    this.bool_tween.animate_to(hovered);
+  }
+
+  scale_factor(): number {
+    let bounce = Math.cos(
+      (Date.now() - this.bounce_start_time) / (1000 * HOVER_POP_VARIATION_TIME) * Math.PI * 2,
+    ) * HOVER_POP_VARIATION_AMOUNT;
+    return lerp(1, HOVER_POP_AMOUNT + bounce, this.bool_tween.factor());
+  }
+}
+
 function eased_anim_factor(start_time: number, duration: number): number {
   let anim_factor = uneased_anim_factor(start_time, duration);
   anim_factor = clamp01(anim_factor); // Clamp
