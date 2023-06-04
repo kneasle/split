@@ -241,13 +241,7 @@ class Transform {
   }
 
   transform_rect(rect: Rect): Rect {
-    let { x, y } = this.transform_point(new Vec2(rect.x, rect.y));
-    return {
-      x,
-      y,
-      w: rect.w * this.scale,
-      h: rect.h * this.scale,
-    };
+    return new Rect(this.transform_point(rect.min), this.transform_point(rect.max));
   }
 
   apply_to_canvas(ctx: CanvasRenderingContext2D) {
@@ -364,4 +358,51 @@ class Vec2 {
   }
 }
 
-type Rect = { x: number; y: number; w: number; h: number };
+class Rect {
+  readonly min: Vec2;
+  readonly max: Vec2;
+
+  /* CONSTRUCTORS */
+
+  constructor(min: Vec2, max: Vec2) {
+    this.min = min;
+    this.max = max;
+  }
+
+  static with_centre(centre: Vec2, size: Vec2): Rect {
+    let half_size = size.div(2);
+    return new Rect(centre.sub(half_size), centre.add(half_size));
+  }
+
+  /* GETTERS */
+
+  size(): Vec2 {
+    return this.max.sub(this.min);
+  }
+
+  width(): number {
+    return this.max.x - this.min.x;
+  }
+
+  height(): number {
+    return this.max.y - this.min.y;
+  }
+
+  centre(): Vec2 {
+    return Vec2.lerp(this.min, this.max, 0.5);
+  }
+
+  /* OPERATIONS */
+
+  scale_about_centre(factor: number): Rect {
+    return Rect.with_centre(this.centre(), this.size().mul(factor));
+  }
+
+  /* INTERSECTION TESTS */
+
+  contains(p: Vec2): boolean {
+    let is_within_x = this.min.x <= p.x && p.x <= this.max.x;
+    let is_within_y = this.min.y <= p.y && p.y <= this.max.y;
+    return is_within_x && is_within_y;
+  }
+}

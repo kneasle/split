@@ -165,7 +165,7 @@ class Game {
       ctx.font = `${Math.round(camera_transform.scale * PUZZLE_TEXT_SIZE)}px monospace`;
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillText(`#${i + 1}`, rect.x - camera_transform.scale * 0.1, rect.y + rect.h / 2);
+      ctx.fillText(`#${i + 1}`, rect.min.x - camera_transform.scale * 0.1, rect.centre().y);
     }
     // Grids
     for (const f of this.fading_grids) {
@@ -299,12 +299,11 @@ class Game {
   }
 
   puzzle_under_cursor(mouse: MouseUpdate): number | undefined {
-    let { x, y } = this.camera_transform().inv().transform_point(mouse.pos);
+    let local_mouse_pos = this.camera_transform().inv().transform_point(mouse.pos);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
-      let r = puzzle_sets[i].overall_rect();
-      if (x < r.x || x > r.x + r.w) continue;
-      if (y < r.y || y > r.y + r.h) continue;
-      return i; // Puzzle is under the cursor
+      if (puzzle_sets[i].overall_rect().contains(local_mouse_pos)) {
+        return i;
+      }
     }
     return undefined;
   }
