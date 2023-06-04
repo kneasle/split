@@ -9,7 +9,7 @@ const PIP_COLOR = Color.from_hex("#fff");
 const CORRECT_COLOR = Color.from_hex("#0f0");
 const INCORRECT_COLOR = Color.from_hex("#f77");
 // Animation
-const PUZZLE_FOCUS_TIME = 0.4; // Seconds
+const PUZZLE_FOCUS_TIME = 0.55; // Seconds
 const GRID_MOVE_ANIMATION_TIME = 0.7; // Seconds
 const GRID_FADE_ANIMATION_TIME = 0.7; // Seconds
 const HOVER_POP_TIME = 0.2; // Seconds
@@ -42,7 +42,7 @@ const VERTEX_INTERACTION_RADIUS = 0.4;
 const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
 const LOOP_CLOSE_SNAP_DISTANCE = 0.4; // Edges; distance at which a line will be snapped to complete a loop
 // Grid Animations
-const SOLVE_ANIMATION_TIME = 0.3; // Seconds
+const SOLVE_ANIMATION_TIME = 0.4; // Seconds
 const PIP_ANIMATION_SPREAD = 0.5; // Factor of `PIP_ANIMATION_TIME`
 const LINE_LERP_SPEED_FACTOR = 6000; // Pixels/second per pixel
 const MIN_LINE_LERP_SPEED = 3000; // Pixels/second

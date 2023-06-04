@@ -163,7 +163,7 @@ class BoolTween {
 
 function eased_anim_factor(start_time: number, duration: number): number {
   let anim_factor = uneased_anim_factor(start_time, duration);
-  anim_factor = Math.max(0, Math.min(1, anim_factor)); // Clamp
+  anim_factor = clamp01(anim_factor); // Clamp
   anim_factor = ease_in_out(anim_factor); // Easing
   return anim_factor;
 }
@@ -172,12 +172,27 @@ function uneased_anim_factor(start_time: number, duration: number): number {
   return (Date.now() - start_time) / 1000 / duration;
 }
 
-function ease_in_out(x: number): number {
-  return (3 - 2 * x) * x * x;
+function ease_in_out(x: number, tension = 1.5): number {
+  x = clamp01(x);
+
+  // Performs the 'ease in' half of the animation, takes 0 <= x <= 0.5 and outputs a new value
+  // 0 <= y <= 0.5.  This computes (2x)^(2^tension) / 2 - i.e. if 0 <= x <= 1, this would just
+  // compute x^(2^tension).
+  let ease_in = (x: number) => Math.pow(x * 2, Math.pow(2, tension)) * 0.5;
+
+  if (x <= 0.5) {
+    return ease_in(x);
+  } else {
+    return 1 - ease_in(1 - x);
+  }
 }
 
 function lerp(a: number, b: number, t: number): number {
   return a * (1 - t) + b * t;
+}
+
+function clamp01(anim_factor: number): number {
+  return Math.max(0, Math.min(1, anim_factor));
 }
 
 /* MATHS */
