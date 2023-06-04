@@ -403,8 +403,9 @@ let _puzzles = [
   { num_solutions: 2, pattern: ".1.|1.1|.1." },
   { num_solutions: 3, pattern: "111|111" },
   { num_solutions: 2, pattern: "111|111|111" },
-  { num_solutions: 1, pattern: "811|111|111" },
   { num_solutions: 1, pattern: "111|181|111" },
+  { num_solutions: 1, pattern: "811|111|111" },
+  { num_solutions: 1, pattern: "711|111|117" },
 
   // Cool set of puzzles
   { num_solutions: 1, pattern: "21|12" },
