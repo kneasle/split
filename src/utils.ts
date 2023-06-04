@@ -159,6 +159,12 @@ class BoolTween {
   factor(): number {
     return this.factor_tween.get();
   }
+
+  staggered_factor(idx: number, stagger_steps: number, stagger_amount: number): number {
+    let start_point = (idx / (stagger_steps - 1)) * stagger_amount;
+    let factor = (this.factor() - start_point) / (1 - stagger_amount);
+    return ease_in_out(factor, /* tension = */ 0.6);
+  }
 }
 
 class HoverTween {
@@ -192,7 +198,6 @@ class HoverTween {
 
 function eased_anim_factor(start_time: number, duration: number): number {
   let anim_factor = uneased_anim_factor(start_time, duration);
-  anim_factor = clamp01(anim_factor); // Clamp
   anim_factor = ease_in_out(anim_factor); // Easing
   return anim_factor;
 }

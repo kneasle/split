@@ -197,11 +197,15 @@ class Game {
     }
 
     // Gui buttons
+    const NUM_BUTTONS = 3;
     let header_height = canvas.height * SOLVING_HEADER_HEIGHT;
     let button_size = Vec2.splat(
       canvas.height * SOLVING_HEADER_HEIGHT * SOLVING_HEADER_BUTTON_SIZE,
     );
-    let button_y = (idx: number) => header_height * (this.overlay_factor() - 0.5);
+    let button_y = (idx: number) => {
+      let factor = this.overlay_tween.staggered_factor(idx, NUM_BUTTONS, OVERLAY_BUTTON_SPREAD);
+      return header_height * (factor - 0.5);
+    };
 
     // '<' to go back a puzzle
     let go_prev = gui.normalised_button(
@@ -221,7 +225,7 @@ class Game {
     // '>' to go forward a puzzle
     let go_next = gui.normalised_button(
       "overlay_next",
-      Rect.with_centre(new Vec2(canvas.width - header_height * 1.5, button_y(0)), button_size),
+      Rect.with_centre(new Vec2(canvas.width - header_height * 1.5, button_y(1)), button_size),
       () => {
         ctx.beginPath();
         ctx.moveTo(0.4, 0.2);
