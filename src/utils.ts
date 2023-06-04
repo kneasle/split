@@ -162,10 +162,14 @@ class BoolTween {
 }
 
 class HoverTween {
+  private pop_amount: number;
+
   private bool_tween: BoolTween;
   private bounce_start_time: number;
 
-  constructor(duration = HOVER_POP_TIME) {
+  constructor(pop_amount: number, duration = HOVER_POP_TIME) {
+    this.pop_amount = pop_amount;
+
     this.bool_tween = new BoolTween(false, duration);
     this.bounce_start_time = 0;
   }
@@ -180,9 +184,9 @@ class HoverTween {
 
   scale_factor(): number {
     let bounce = Math.cos(
-      (Date.now() - this.bounce_start_time) / (1000 * HOVER_POP_VARIATION_TIME) * Math.PI * 2,
-    ) * HOVER_POP_VARIATION_AMOUNT;
-    return lerp(1, HOVER_POP_AMOUNT + bounce, this.bool_tween.factor());
+      (Date.now() - this.bounce_start_time) / (1000 * HOVER_POP_BOUNCE_TIME) * Math.PI * 2,
+    ) * HOVER_POP_BOUNCE_AMOUNT;
+    return lerp(1, this.pop_amount + bounce, this.bool_tween.factor());
   }
 }
 
@@ -299,6 +303,10 @@ class Vec2 {
   constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
+  }
+
+  static splat(v: number): Vec2 {
+    return new Vec2(v, v);
   }
 
   /* BASIC ARITHMETIC */

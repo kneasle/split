@@ -146,7 +146,7 @@ class Game {
     */
   }
 
-  draw(): void {
+  draw(gui: Gui): void {
     /* BACKGROUND */
     ctx.fillStyle = BG_COLOR.to_canvas_color();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -180,7 +180,7 @@ class Game {
 
     /* OVERLAY LAYER */
 
-    // Overlay fader
+    // Background fader
     if (this.overlay_factor() > 0) {
       let fade_start_y = canvas.height *
         (OVERLAY_FADE_START * SOLVING_HEADER_HEIGHT + 1 - this.overlay_factor());
@@ -195,7 +195,31 @@ class Game {
       ctx.fillRect(0, fade_start_y, canvas.width, canvas.height - fade_start_y);
     }
 
-    // Puzzle grids
+    // Gui buttons
+    let header_height = canvas.height * SOLVING_HEADER_HEIGHT;
+    let button_size = canvas.height * SOLVING_HEADER_HEIGHT * SOLVING_HEADER_BUTTON_SIZE;
+    // 'x' to close overlay
+    let should_close = gui.normalised_button(
+      "overlay_close",
+      Rect.with_centre(
+        new Vec2(canvas.width - header_height / 2, header_height * (this.overlay_factor() - 0.5)),
+        Vec2.splat(button_size),
+      ),
+      () => {
+        ctx.beginPath();
+        ctx.moveTo(0.2, 0.2);
+        ctx.lineTo(0.8, 0.8);
+        ctx.moveTo(0.2, 0.8);
+        ctx.lineTo(0.8, 0.2);
+        ctx.lineWidth = 0.1;
+        ctx.stroke();
+      },
+    );
+    if (should_close) {
+      this.overlay_tween.animate_to(false);
+    }
+
+    // Grids (usually just one, but possibly many if we are animating between puzzles)
     let first_puzzle_on_screen = Math.floor(this.focussed_puzzle_tween.get());
     let last_puzzle_on_screen = Math.ceil(this.focussed_puzzle_tween.get());
     for (let i = first_puzzle_on_screen; i <= last_puzzle_on_screen; i++) {
@@ -548,6 +572,7 @@ type MouseUpdate = {
 };
 
 let mouse_event_handler = new MouseEventHandler();
+let gui_memory = new GuiMemory();
 
 /* START GAMELOOP */
 
@@ -559,7 +584,7 @@ function frame(): void {
   last_frame_time = Date.now();
 
   game.update(time_delta, mouse_update);
-  game.draw();
+  game.draw(new Gui(gui_memory, mouse_update));
   window.requestAnimationFrame(frame);
 }
 frame();

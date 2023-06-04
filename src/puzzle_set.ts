@@ -11,7 +11,7 @@ class PuzzleSet {
 
   constructor(pattern: string, x: number, y: number, num_solutions: number) {
     this.puzzle = new Puzzle(pattern, num_solutions);
-    this.hover_tween = new HoverTween();
+    this.hover_tween = new HoverTween(PUZZLE_HOVER_POP_AMOUNT);
 
     // Compute box and grid scales
     let total_grid_width = (this.puzzle.grid_width + 1) * this.puzzle.num_solutions;
