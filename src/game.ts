@@ -11,6 +11,7 @@ class Game {
     grid: Grid;
   }[];
 
+  last_clicked_puzzle = 0; // Puzzle that was clicked on to open the overlay
   focussed_puzzle_tween: Tween<number>; // Tweens between puzzle numbers
   overlay_tween: BoolTween; // Tweens between false (overlay off) and true (overlay on)
 
@@ -197,25 +198,73 @@ class Game {
 
     // Gui buttons
     let header_height = canvas.height * SOLVING_HEADER_HEIGHT;
-    let button_size = canvas.height * SOLVING_HEADER_HEIGHT * SOLVING_HEADER_BUTTON_SIZE;
+    let button_size = Vec2.splat(
+      canvas.height * SOLVING_HEADER_HEIGHT * SOLVING_HEADER_BUTTON_SIZE,
+    );
+    let button_y = (idx: number) => header_height * (this.overlay_factor() - 0.5);
+
+    // '<' to go back a puzzle
+    let go_prev = gui.normalised_button(
+      "overlay_prev",
+      Rect.with_centre(new Vec2(header_height * 1.0, button_y(0)), button_size),
+      () => {
+        ctx.beginPath();
+        ctx.moveTo(0.6, 0.2);
+        ctx.lineTo(0.2, 0.5);
+        ctx.lineTo(0.6, 0.8);
+        // TODO: Fade this if we can't go further
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 0.1;
+        ctx.stroke();
+      },
+    );
+    // '>' to go forward a puzzle
+    let go_next = gui.normalised_button(
+      "overlay_next",
+      Rect.with_centre(new Vec2(canvas.width - header_height * 1.5, button_y(0)), button_size),
+      () => {
+        ctx.beginPath();
+        ctx.moveTo(0.4, 0.2);
+        ctx.lineTo(0.8, 0.5);
+        ctx.lineTo(0.4, 0.8);
+        // TODO: Fade this if we can't go further
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 0.1;
+        ctx.stroke();
+      },
+    );
     // 'x' to close overlay
     let should_close = gui.normalised_button(
       "overlay_close",
-      Rect.with_centre(
-        new Vec2(canvas.width - header_height / 2, header_height * (this.overlay_factor() - 0.5)),
-        Vec2.splat(button_size),
-      ),
+      Rect.with_centre(new Vec2(canvas.width - header_height * 0.5, button_y(2)), button_size),
       () => {
         ctx.beginPath();
         ctx.moveTo(0.2, 0.2);
         ctx.lineTo(0.8, 0.8);
         ctx.moveTo(0.2, 0.8);
         ctx.lineTo(0.8, 0.2);
+        ctx.strokeStyle = "black";
         ctx.lineWidth = 0.1;
         ctx.stroke();
       },
     );
+    // Handle next/prev presses
+    const current_puzzle = this.focussed_puzzle_tween.target;
+    let next_puzzle = current_puzzle;
+    if (go_prev) next_puzzle -= 1;
+    if (go_next) next_puzzle += 1;
+    next_puzzle = clamp(next_puzzle, 0, this.puzzle_sets.length - 1);
+    if (next_puzzle !== current_puzzle) {
+      this.focussed_puzzle_tween.animate_to(next_puzzle);
+    }
+    // Handle overlay closing
     if (should_close) {
+      // Move the puzzle world camera based on the puzzles we've moved through
+      this.puzzle_world_transform = Transform
+        .translate(
+          Vec2.DOWN.mul((this.last_clicked_puzzle - current_puzzle) * PUZZLE_BOX_MAX_HEIGHT),
+        )
+        .then(this.puzzle_world_transform);
       this.overlay_tween.animate_to(false);
     }
 
@@ -276,6 +325,7 @@ class Game {
         let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
         if (puzzle_under_cursor !== undefined) {
           this.focussed_puzzle_tween.jump_to(puzzle_under_cursor);
+          this.last_clicked_puzzle = puzzle_under_cursor;
           this.overlay_tween.animate_to(true);
         }
       }

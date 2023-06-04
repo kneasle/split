@@ -220,8 +220,12 @@ function lerp(a: number, b: number, t: number): number {
   return a * (1 - t) + b * t;
 }
 
-function clamp01(anim_factor: number): number {
-  return Math.max(0, Math.min(1, anim_factor));
+function clamp01(x: number): number {
+  return clamp(x, 0, 1);
+}
+
+function clamp(x: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, x));
 }
 
 /* MATHS */
