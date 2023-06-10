@@ -5,7 +5,7 @@ class Grid {
   pip_idxs_per_cell: number[][];
 
   solution: Solution | undefined;
-  solvedness: Tween<number>; // 0 <= solvedness <= 1: 0 is unsolved, 1 is solved
+  solvedness: BoolTween;
   stashable_last_frame: boolean;
 
   is_drawing_line: boolean;
@@ -21,7 +21,7 @@ class Grid {
     // 2) `this.solution.is_valid === true`: the solution is valid
     // 3) `this.solution.is_valid === false`: the solution is invalid
     this.solution = undefined;
-    this.solvedness = new Tween<number>(0, SOLVE_ANIMATION_TIME, lerp);
+    this.solvedness = new BoolTween(false, SOLVE_ANIMATION_TIME);
     this.stashable_last_frame = false;
 
     this.is_drawing_line = false;
@@ -58,7 +58,7 @@ class Grid {
   }
 
   draw(transform: Transform): void {
-    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.get())
+    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.factor())
       .to_canvas_color();
 
     // Update canvas's transformation matrix to the puzzle's local space
@@ -163,7 +163,7 @@ class Grid {
       }
     }
     this.solution = undefined;
-    this.solvedness.animate_to(0.0);
+    this.solvedness.animate_to(false);
 
     // Reset ideal line
     this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
@@ -213,7 +213,7 @@ class Grid {
       return; // Can't solve the puzzle if the line doesn't form a loop
     }
     this.solution = this.puzzle.get_solution(this.line_path);
-    this.solvedness.animate_to(1.0);
+    this.solvedness.animate_to(true);
 
     // Decide where to move the pips
     for (const region of this.solution.regions) {
