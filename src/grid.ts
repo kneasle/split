@@ -1,10 +1,9 @@
 /// An instance of a puzzle grid on the screen
 class Grid {
   puzzle: Puzzle;
-  pips: Pip[];
-  pip_idxs_per_cell: number[][];
+  pip_idxs_per_cell: number[][]; // List of pip idxs per cell
 
-  solution: Solution | undefined;
+  solution: FullSolution | undefined;
   solvedness: BoolTween;
   stashable_last_frame: boolean;
 
@@ -30,15 +29,13 @@ class Grid {
     this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
 
     // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
-    this.pips = [];
     this.pip_idxs_per_cell = [];
+    let num_pips = 0;
     for (let c = 0; c < this.puzzle.cells.length; c++) {
       const cell = this.puzzle.cells[c];
       const pip_idxs = [];
-      for (let p = 0; p < cell.pips; p++) {
-        pip_idxs.push(this.pips.length);
-        const { x, y } = this.pip_coords(c, p);
-        this.pips.push(new Pip(c, { x, y, color: PIP_COLOR }));
+      for (let p = 0; p < cell.num_pips; p++) {
+        pip_idxs.push(num_pips++);
       }
       this.pip_idxs_per_cell.push(pip_idxs);
     }
@@ -58,9 +55,6 @@ class Grid {
   }
 
   draw(transform: Transform): void {
-    const line_color = Color.lerp(LINE_COLOR, this.solution_color(), this.solvedness.factor())
-      .to_canvas_color();
-
     // Update canvas's transformation matrix to the puzzle's local space
     ctx.save();
     transform.apply_to_canvas(ctx);
@@ -98,7 +92,7 @@ class Grid {
     let line = this.displayed_line;
 
     ctx.lineWidth = EDGE_WIDTH;
-    ctx.strokeStyle = line_color;
+    ctx.strokeStyle = this.color_lerped_with_solution(LINE_COLOR);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -127,14 +121,28 @@ class Grid {
     }
     ctx.stroke();
 
-    // Pips
-    for (const pip of this.pips) {
-      const { x, y, color } = pip.state_tween.get();
-      ctx.fillStyle = color.to_canvas_color();
+    // Determine pip coords (including solve animations)
+    let num_pips = this.puzzle.total_num_pips;
+    let pip_coords = this.all_pip_coords(this.pip_idxs_per_cell);
+    if (this.solution !== undefined) {
+      let solved_pip_coords = this.all_pip_coords(this.solution.pip_idxs_per_cell);
+      for (let i = 0; i < num_pips; i++) {
+        // Lerp all the pips
+        let factor = this.solvedness.staggered_factor(i, num_pips, PIP_ANIMATION_SPREAD);
+        pip_coords[i] = Vec2.lerp(pip_coords[i], solved_pip_coords[i], factor);
+      }
+    }
+    // Draw these pips
+    ctx.fillStyle = this.color_lerped_with_solution(PIP_COLOR);
+    for (const { x, y } of pip_coords) {
       ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
     }
 
     ctx.restore();
+  }
+
+  private color_lerped_with_solution(color: Color): string {
+    return Color.lerp(color, this.solution_color(), this.solvedness.factor()).to_canvas_color();
   }
 
   /* ===== MOUSE HANDLING ===== */
@@ -156,13 +164,6 @@ class Grid {
     }
 
     // If the grid was clicked, remove current solution
-    if (this.solution !== undefined) {
-      // Animate all pips back to their start locations
-      for (const pip of this.pips) {
-        pip.state_tween.animate_to(pip.unsolved_state);
-      }
-    }
-    this.solution = undefined;
     this.solvedness.animate_to(false);
 
     // Reset ideal line
@@ -212,12 +213,13 @@ class Grid {
       }
       return; // Can't solve the puzzle if the line doesn't form a loop
     }
-    this.solution = this.puzzle.get_solution(this.line_path);
+    let solution = this.puzzle.get_solution(this.line_path);
     this.solvedness.animate_to(true);
 
     // Decide where to move the pips
-    for (const region of this.solution.regions) {
-      if (region.pips === 0) continue;
+    let pip_idxs_per_cell: number[][] = this.puzzle.cells.map((_) => []);
+    for (const region of solution.regions) {
+      if (region.num_pips === 0) continue;
       // Compute the centre of the region
       let { centroid: region_centre, symmetry_line_directions } = this.region_symmetry(region);
       // Sort cells by their distance from the centre of the region.  This is the order that we'll
@@ -242,17 +244,22 @@ class Grid {
       let pip_idxs_in_region = region.cells.flatMap((idx: number) => this.pip_idxs_per_cell[idx]);
       for (const cell_idx of cells_to_add_pips_to) {
         // Reserve up to 10 pips to go in this cell
-        const num_pips = Math.min(pip_idxs_in_region.length, 10);
-        const pip_idxs = pip_idxs_in_region.slice(0, num_pips);
-        pip_idxs_in_region = pip_idxs_in_region.slice(num_pips);
+        const num_pips_in_cell = Math.min(pip_idxs_in_region.length, 10);
+        const pip_idxs_in_cell = pip_idxs_in_region.slice(0, num_pips_in_cell);
+        pip_idxs_in_region = pip_idxs_in_region.slice(num_pips_in_cell);
         // Animate them to their new positions
         // TODO: Don't move pips which exist in both the solved and unsolved puzzles
-        for (let p = 0; p < num_pips; p++) {
-          const { x, y } = this.pip_coords(cell_idx, p, num_pips);
-          this.pips[pip_idxs[p]].state_tween.animate_to({ x, y, color: this.solution_color() });
+        for (let p = 0; p < num_pips_in_cell; p++) {
+          pip_idxs_per_cell[cell_idx].push(pip_idxs_in_cell[p]);
         }
       }
     }
+
+    this.solution = {
+      time: Date.now(),
+      inner: solution,
+      pip_idxs_per_cell,
+    };
   }
 
   /* ===== LINE HANDLING ===== */
@@ -374,7 +381,7 @@ class Grid {
     }
   }
 
-  /* ===== HELPERS ===== */
+  /* ===== PIP POSITIONING ===== */
 
   private region_symmetry(
     region: Region,
@@ -415,11 +422,26 @@ class Grid {
     return { centroid, symmetry_line_directions };
   }
 
-  pip_coords(cell_idx: number, pip_idx: number, num_pips?: number): Vec2 {
+  all_pip_coords(pip_idxs_per_cell: number[][]): Vec2[] {
+    let pip_coords = [];
+    for (let i = 0; i < this.puzzle.total_num_pips; i++) pip_coords.push(Vec2.ZERO);
+
+    for (let c = 0; c < this.puzzle.cells.length; c++) {
+      let pip_idxs = pip_idxs_per_cell[c];
+      for (let p = 0; p < pip_idxs.length; p++) {
+        pip_coords[pip_idxs[p]] = this.pip_coords(c, p, pip_idxs.length);
+      }
+    }
+    return pip_coords;
+  }
+
+  pip_coords(cell_idx: number, pip_idx: number, num_pips: number): Vec2 {
     const cell = this.puzzle.cells[cell_idx];
-    const pattern_coord = dice_pattern(num_pips || cell.pips)[pip_idx];
+    const pattern_coord = dice_pattern(num_pips)[pip_idx];
     return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
   }
+
+  /* ===== HELPERS ===== */
 
   has_just_become_stashable(): boolean {
     let just_been_stashed = !this.stashable_last_frame && this.is_stashable();
@@ -434,7 +456,7 @@ class Grid {
   }
 
   is_correctly_solved(): boolean {
-    return this.solution !== undefined && this.solution.is_correct;
+    return this.solution !== undefined && this.solution.inner.is_correct;
   }
 
   solution_color(): Color {
@@ -454,31 +476,11 @@ type MousePos = {
   vert_distance: number;
 };
 
-class Pip {
-  source_cell_idx: number;
-  unsolved_state: PipState;
-  state_tween: Tween<PipState>;
-
-  constructor(source_cell_idx: number, unsolved_state: PipState) {
-    // Location of the pip in the unsolved puzzle
-    this.source_cell_idx = source_cell_idx;
-    this.unsolved_state = unsolved_state;
-
-    // Start the pips animating from unsolved to unsolved
-    this.state_tween = new Tween(unsolved_state, SOLVE_ANIMATION_TIME, lerp_pip_state);
-    this.state_tween.random_delay_factor = PIP_ANIMATION_SPREAD;
-  }
-}
-
-type PipState = { x: number; y: number; color: Color };
-
-function lerp_pip_state(a: PipState, b: PipState, t: number): PipState {
-  return {
-    x: lerp(a.x, b.x, t),
-    y: lerp(a.y, b.y, t),
-    color: Color.lerp(a.color, b.color, t),
-  };
-}
+type FullSolution = {
+  time: number;
+  inner: Solution;
+  pip_idxs_per_cell: number[][];
+};
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
 function dice_pattern(num_pips: number): Vec2[] {

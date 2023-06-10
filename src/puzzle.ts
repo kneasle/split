@@ -6,6 +6,7 @@ class Puzzle {
   edges: { v1: number; v2: number }[];
   cells: Cell[];
 
+  total_num_pips: number;
   num_solutions: number;
   grid_width: number;
   grid_height: number;
@@ -44,6 +45,7 @@ class Puzzle {
 
     // Cells
     this.cells = [];
+    this.total_num_pips = 0;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // Get the vertices surrounding this cell
@@ -70,10 +72,12 @@ class Puzzle {
           neighbours.push({ edge_idx, cell_idx });
         }
 
+        let num_pips = parseInt(pip_lines[y][x]) || 0;
+        this.total_num_pips += num_pips;
         this.cells.push({
           verts: [tl, tr, br, bl],
           centre: new Vec2(x + 0.5, y + 0.5),
-          pips: parseInt(pip_lines[y][x]) || 0,
+          num_pips,
           neighbours,
         });
       }
@@ -128,7 +132,7 @@ class Puzzle {
       if (region_start_cell === undefined) break;
       // Take this new cell and explore its entire region using DFS
       let cells_in_region = [];
-      let pips_in_region = 0;
+      let num_pips_in_region = 0;
       let frontier = [region_start_cell];
       while (frontier.length > 0) {
         let next_cell_idx = frontier.pop()!;
@@ -137,7 +141,7 @@ class Puzzle {
         // Add cell to this region
         is_cell_in_region[next_cell_idx] = true;
         cells_in_region.push(next_cell_idx);
-        pips_in_region += next_cell.pips;
+        num_pips_in_region += next_cell.num_pips;
         // Add cell's neighbours to the frontier
         for (const { edge_idx, cell_idx } of next_cell.neighbours) {
           if (is_edge_in_line[edge_idx]) continue; // Can't connect region over line
@@ -145,16 +149,16 @@ class Puzzle {
         }
       }
       // Once BFS has fully explored the region, add this region as complete
-      regions.push({ pips: pips_in_region, cells: cells_in_region });
+      regions.push({ num_pips: num_pips_in_region, cells: cells_in_region });
     }
 
     // Use the pip counts to check if the regions actually make a valid solution
-    const pip_counts = regions.map((r) => r.pips).filter((pips) => pips > 0);
+    const pip_counts = regions.map((r) => r.num_pips).filter((pips) => pips > 0);
     const pip_group_size = pip_counts[0];
     const is_correct = pip_counts.length > 1 && pip_counts.every((p) => p == pip_group_size);
 
     // Package the solution and return
-    return { is_correct, pip_group_size, regions, time: Date.now() };
+    return { is_correct, pip_group_size, regions };
   }
 
   // Find the nearest point to `(p_x, p_y)` on any edge in the puzzle, *excluding* those already on
@@ -236,7 +240,7 @@ class Puzzle {
 type Cell = {
   verts: number[];
   centre: Vec2;
-  pips: number;
+  num_pips: number;
   neighbours: { edge_idx: number; cell_idx: number }[];
 };
 
@@ -244,9 +248,9 @@ type Solution = {
   is_correct: boolean;
   pip_group_size: number;
   regions: Region[];
-  time: number;
 };
-type Region = { pips: number; cells: number[] };
+
+type Region = { num_pips: number; cells: number[] };
 
 type NearestEdge = {
   edge_idx: number;
