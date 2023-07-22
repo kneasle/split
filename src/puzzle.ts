@@ -131,7 +131,7 @@ class Puzzle {
       c.centre = c.centre.sub(rect_centre);
     }
     // Store width and height of this puzzle's bounding box
-    this.grid_bbox = new Rect(min, max);
+    this.grid_bbox = Rect.with_centre(Vec2.ZERO, max.sub(min));
   }
 
   get_solution(line: number[]): Solution {

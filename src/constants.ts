@@ -26,6 +26,7 @@ const PUZZLE_BOX_MAX_WIDTH = 4;
 const PUZZLE_BOX_MAX_HEIGHT = 1;
 const PUZZLE_TEXT_SIZE = 0.5; // Puzzle world units
 const PUZZLE_HOVER_POP_AMOUNT = 1.4; // Factor of normal puzzle size
+const SOLVED_GRID_HOVER_BORDER = 0.5; // Factor of grid edge lengths
 // Solving Mode
 const SOLVING_HEADER_HEIGHT = 0.2; // Factor of window height
 const SOLVING_PUZZLE_LINE_HEIGHT = 0.7; // Factor of header height

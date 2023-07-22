@@ -20,11 +20,17 @@ class SolvedGrid {
     );
     if (target_transform) this.transform_tween.animate_to(target_transform);
 
-    this.solvedness = new BoolTween(false, SOLVE_ANIMATION_TIME);
+    this.solvedness = new BoolTween(true, SOLVE_ANIMATION_TIME);
     let grid = puzzle_set.overlay_grid;
     this.pip_idxs_per_cell_solved = grid.solution!.pip_idxs_per_cell;
     this.solution_line = grid.line_path;
     this.pip_group_size = grid.solution!.inner.pip_group_size;
+  }
+
+  update(mouse: MouseUpdate, transform: Transform): void {
+    let expanded_bbox = this.puzzle_set.puzzle.grid_bbox.expand(SOLVED_GRID_HOVER_BORDER);
+    let is_hovered = transform.transform_rect(expanded_bbox).contains(mouse.pos);
+    this.solvedness.animate_to(!this.is_animating_out_of_overlay() && is_hovered);
   }
 
   draw(transform: Transform): void {

@@ -24,6 +24,16 @@ class Game {
   update(time_delta: number, mouse: MouseUpdate): void {
     this.handle_mouse_interaction(mouse);
 
+    /* PUZZLE WORLD */
+
+    for (const g of this.solved_grids) {
+      g.update(mouse, this.solved_grid_transform(g));
+    }
+    // Remove any grids which have fully faded
+    retain(this.solved_grids, (grid) => !grid.is_fully_faded());
+
+    /* OVERLAY */
+
     let puzzle_idx = this.focussed_puzzle();
     if (puzzle_idx !== undefined) {
       let focussed_puzzle_set = this.puzzle_sets[puzzle_idx];
@@ -35,9 +45,6 @@ class Game {
         this.stash_overlay_grid(focussed_puzzle_set);
       }
     }
-
-    // Remove any grids which have fully faded
-    retain(this.solved_grids, (grid) => !grid.is_fully_faded());
   }
 
   draw(gui: Gui): void {
@@ -196,12 +203,8 @@ class Game {
 
   private draw_solved_grids(predicate: (g: SolvedGrid) => boolean): void {
     for (const g of this.solved_grids) {
-      let transform = g.transform_tween.get_with_pre_and_lerp_fn(
-        (t) => this.convert_transform(g.puzzle_set, t),
-        Transform.lerp,
-      );
       if (predicate(g)) {
-        g.draw(transform);
+        g.draw(this.solved_grid_transform(g));
       }
     }
   }
@@ -283,7 +286,13 @@ class Game {
     puzzle_set.overlay_grid = new OverlayGrid(puzzle_set.puzzle);
   }
 
-  // TODO: Move this into `SolvedGrid`
+  solved_grid_transform(g: SolvedGrid): Transform {
+    return g.transform_tween.get_with_pre_and_lerp_fn(
+      (t) => this.convert_transform(g.puzzle_set, t),
+      Transform.lerp,
+    );
+  }
+
   convert_transform(puzzle_set: PuzzleSet, t: SolvedGridTransform): Transform {
     if (t === "overlay") {
       return this.unanimated_overlay_grid_transform(puzzle_set);
@@ -353,8 +362,8 @@ let _puzzles = [
   { solutions: [1, 2], pattern: ".1.|1.1|.1." },
   { solutions: [1, 2, 3], pattern: "111|111" },
   { solutions: [1, 3], pattern: "111|111|111" },
-  { solutions: [8], pattern: "111|181|111" },
   { solutions: [8], pattern: "811|111|111" },
+  { solutions: [8], pattern: "111|181|111" },
   { solutions: [7], pattern: "711|111|117" },
 
   // Cool set of puzzles
