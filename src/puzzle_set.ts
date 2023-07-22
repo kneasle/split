@@ -4,7 +4,6 @@ class PuzzleSet {
   private grid_scale: number;
   private hover_tween: HoverTween;
 
-  grids: SolvedGrid[]; // TODO: Flatten this into `Game`
   overlay_grid: OverlayGrid;
 
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
@@ -26,10 +25,6 @@ class PuzzleSet {
       new Vec2(total_grid_width * this.grid_scale, PUZZLE_BOX_MAX_HEIGHT),
     );
 
-    this.grids = [];
-    for (let i = 0; i < this.puzzle.solutions.length; i++) {
-      // TODO: this.grids.push(new Grid(this.puzzle));
-    }
     this.overlay_grid = new OverlayGrid(this.puzzle);
   }
 

@@ -1,5 +1,5 @@
 class SolvedGrid {
-  puzzle: Puzzle;
+  puzzle_set: PuzzleSet;
   transform_tween: Tween<SolvedGridTransform>;
 
   solvedness: BoolTween;
@@ -9,11 +9,11 @@ class SolvedGrid {
   pip_group_size: number;
 
   constructor(
-    grid: OverlayGrid,
+    puzzle_set: PuzzleSet,
     start_transform: SolvedGridTransform,
     target_transform?: SolvedGridTransform,
   ) {
-    this.puzzle = grid.puzzle;
+    this.puzzle_set = puzzle_set;
     this.transform_tween = new Tween<SolvedGridTransform>(
       start_transform,
       GRID_MOVE_ANIMATION_TIME,
@@ -22,6 +22,7 @@ class SolvedGrid {
     if (target_transform) this.transform_tween.animate_to(target_transform);
 
     this.solvedness = new BoolTween(false, SOLVE_ANIMATION_TIME);
+    let grid = puzzle_set.overlay_grid;
     this.pip_idxs_per_cell_unsolved = grid.pip_idxs_per_cell;
     this.pip_idxs_per_cell_solved = grid.solution!.pip_idxs_per_cell;
     this.solution_line = grid.line_path;
@@ -40,7 +41,7 @@ class SolvedGrid {
     };
     draw_grid(
       transform,
-      this.puzzle,
+      this.puzzle_set.puzzle,
       [line],
       this.pip_idxs_per_cell_unsolved,
       solution,

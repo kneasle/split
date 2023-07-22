@@ -5,6 +5,7 @@ class Game {
   /* Puzzle world */
   puzzle_world_transform: Transform;
   puzzle_sets: PuzzleSet[];
+  solved_grids: SolvedGrid[];
 
   last_clicked_puzzle = 0; // Puzzle that was clicked on to open the overlay
   focussed_puzzle_tween: Tween<number>; // Tweens between puzzle numbers
@@ -14,6 +15,7 @@ class Game {
     // Puzzle world
     this.puzzle_world_transform = Transform.scale(DEFAULT_ZOOM);
     this.puzzle_sets = puzzle_sets;
+    this.solved_grids = [];
 
     this.focussed_puzzle_tween = new Tween<number>(0, PUZZLE_FOCUS_TIME, lerp);
     this.overlay_tween = new BoolTween(false, PUZZLE_FOCUS_TIME);
@@ -187,16 +189,13 @@ class Game {
   }
 
   private draw_solved_grids(predicate: (g: SolvedGrid) => boolean): void {
-    for (let p = 0; p < this.puzzle_sets.length; p++) {
-      let puzzle_set = this.puzzle_sets[p];
-      for (const g of puzzle_set.grids) {
-        let transform = g.transform_tween.get_with_pre_and_lerp_fn(
-          (t) => this.convert_transform(puzzle_set, t),
-          Transform.lerp,
-        );
-        if (predicate(g)) {
-          g.draw(transform);
-        }
+    for (const g of this.solved_grids) {
+      let transform = g.transform_tween.get_with_pre_and_lerp_fn(
+        (t) => this.convert_transform(g.puzzle_set, t),
+        Transform.lerp,
+      );
+      if (predicate(g)) {
+        g.draw(transform);
       }
     }
   }
@@ -262,8 +261,8 @@ class Game {
     const solution = puzzle_set.overlay_grid.solution!;
     const pip_group_size = solution.inner.pip_group_size;
     // Fade any existing grid(s) with this solution size (there should only be one)
-    for (const g of puzzle_set.grids) {
-      if (g.pip_group_size === pip_group_size) {
+    for (const g of this.solved_grids) {
+      if (g.puzzle_set === puzzle_set && g.pip_group_size === pip_group_size) {
         let curr_transform = g.transform_tween.get();
         if (curr_transform !== "overlay") {
           g.transform_tween.animate_to({ grid_idx: curr_transform.grid_idx, scale_factor: 0 });
@@ -272,17 +271,13 @@ class Game {
     }
     // Animate the existing grid to this new position
     let grid_idx = puzzle_set.puzzle.solutions.findIndex((x) => x === pip_group_size);
-    console.log(grid_idx);
-    let solved_grid = new SolvedGrid(
-      puzzle_set.overlay_grid,
-      "overlay",
-      { grid_idx, scale_factor: 1 },
-    );
-    puzzle_set.grids.push(solved_grid);
+    let solved_grid = new SolvedGrid(puzzle_set, "overlay", { grid_idx, scale_factor: 1 });
+    this.solved_grids.push(solved_grid);
     // Create a new main grid to replace the old one
     puzzle_set.overlay_grid = new OverlayGrid(puzzle_set.puzzle);
   }
 
+  // TODO: Move this into `SolvedGrid`
   convert_transform(puzzle_set: PuzzleSet, t: SolvedGridTransform): Transform {
     if (t === "overlay") {
       return this.unanimated_overlay_grid_transform(puzzle_set);
