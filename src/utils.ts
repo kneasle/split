@@ -446,11 +446,25 @@ class Rect {
     return Rect.with_centre(this.centre(), this.size().mul(factor));
   }
 
+  expand(size: number): Rect {
+    return this.expand2(Vec2.splat(size));
+  }
+
+  expand2(size: Vec2): Rect {
+    return new Rect(this.min.sub(size), this.max.add(size));
+  }
+
   /* INTERSECTION TESTS */
 
   contains(p: Vec2): boolean {
     let is_within_x = this.min.x <= p.x && p.x <= this.max.x;
     let is_within_y = this.min.y <= p.y && p.y <= this.max.y;
     return is_within_x && is_within_y;
+  }
+
+  overlaps_with(other: Rect): boolean {
+    let overlaps_x = this.max.x >= other.min.x && this.min.x <= other.max.x;
+    let overlaps_y = this.max.y >= other.min.y && this.min.y <= other.max.y;
+    return overlaps_x && overlaps_y;
   }
 }

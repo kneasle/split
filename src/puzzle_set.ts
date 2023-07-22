@@ -13,8 +13,8 @@ class PuzzleSet {
     this.hover_tween = new HoverTween(PUZZLE_HOVER_POP_AMOUNT);
 
     // Compute box and grid scales
-    let total_grid_width = (this.puzzle.grid_width + 1) * this.puzzle.solutions.length;
-    let total_grid_height = this.puzzle.grid_height + 1;
+    let total_grid_width = (this.puzzle.grid_bbox.width() + 1) * this.puzzle.solutions.length;
+    let total_grid_height = this.puzzle.grid_bbox.height() + 1;
     this.grid_scale = Math.min(
       PUZZLE_BOX_MAX_WIDTH / total_grid_width, // scale to fill width
       PUZZLE_BOX_MAX_HEIGHT / total_grid_height, // scale to fill height

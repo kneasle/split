@@ -10,8 +10,7 @@ class Puzzle {
   total_num_pips: number;
 
   solutions: number[];
-  grid_width: number;
-  grid_height: number;
+  grid_bbox: Rect;
 
   constructor(pattern: string, solutions: number[]) {
     /* Values used by the rest of the game */
@@ -132,8 +131,7 @@ class Puzzle {
       c.centre = c.centre.sub(rect_centre);
     }
     // Store width and height of this puzzle's bounding box
-    this.grid_width = max.x - min.x;
-    this.grid_height = max.y - min.y;
+    this.grid_bbox = new Rect(min, max);
   }
 
   get_solution(line: number[]): Solution {

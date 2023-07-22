@@ -131,8 +131,8 @@ class OverlayGrid {
       this.line_path = [nearestVert.vert_idx];
       this.is_drawing_line = true;
     } else if (
-      local_mouse_pos.x >= 0 && local_mouse_pos.x <= this.puzzle.grid_width &&
-      local_mouse_pos.y >= 0 && local_mouse_pos.y <= this.puzzle.grid_height
+      local_mouse_pos.x >= 0 && local_mouse_pos.x <= this.puzzle.grid_bbox.width() &&
+      local_mouse_pos.y >= 0 && local_mouse_pos.y <= this.puzzle.grid_bbox.height()
     ) {
       this.line_path = []; // Mouse is on the grid but can't start a line
     } else {
@@ -429,7 +429,12 @@ function draw_grid(
   solution: { is_correct: boolean; pip_idxs_per_cell: number[][] } | undefined,
   solvedness: BoolTween,
 ): void {
-  // TODO: Occlusion cull grids which are off the screen
+  // Occlusion cull grids which are off the screen
+  let rect = transform.transform_rect(puzzle.grid_bbox);
+  let screen_rect = new Rect(Vec2.ZERO, new Vec2(canvas.width, canvas.height));
+  if (!screen_rect.expand(100).overlaps_with(rect)) {
+    return;
+  }
 
   let color_lerped_with_solution = (color: Color) => {
     let is_correct = solution && solution.is_correct;

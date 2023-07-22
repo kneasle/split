@@ -312,8 +312,8 @@ class Game {
   unanimated_overlay_grid_transform(puzzle_set: PuzzleSet): Transform {
     let header_height = canvas.height * SOLVING_HEADER_HEIGHT; // Convert from ratio to pixels
     let scale = Math.min(
-      canvas.width / (puzzle_set.puzzle.grid_width + 1),
-      (canvas.height - header_height) / (puzzle_set.puzzle.grid_height + 1),
+      canvas.width / (puzzle_set.puzzle.grid_bbox.width() + 1),
+      (canvas.height - header_height) / (puzzle_set.puzzle.grid_bbox.height() + 1),
     );
     let y_coord = lerp(header_height, canvas.height, 0.5);
     return Transform.scale(scale).then_translate(new Vec2(canvas.width / 2, y_coord));
