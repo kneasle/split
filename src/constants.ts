@@ -50,6 +50,8 @@ const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will g
 const LOOP_CLOSE_SNAP_DISTANCE = 0.4; // Edges; distance at which a line will be snapped to complete a loop
 // Grid Animations
 const SOLVE_ANIMATION_TIME = 0.7; // Seconds
+const LINE_FADE_TIME = 0.5; // Seconds
+const LINE_FADE_AMOUNT = 0.8; // Opacity level of a faded line
 const PIP_ANIMATION_SPREAD = 0.3; // Factor of `PIP_ANIMATION_TIME`
 const LINE_LERP_SPEED_FACTOR = 6000; // Pixels/second per pixel
 const MIN_LINE_LERP_SPEED = 3000; // Pixels/second

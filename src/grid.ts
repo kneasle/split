@@ -1,3 +1,7 @@
+/////////////////
+// SOLVED GRID //
+/////////////////
+
 class SolvedGrid {
   puzzle_set: PuzzleSet;
   transform_tween: Tween<SolvedGridTransform>;
@@ -47,7 +51,7 @@ class SolvedGrid {
       transform,
       this.puzzle_set.puzzle,
       DEFAULT_COLOR_SET,
-      [line],
+      [{ line, fadedness: 0.0 }],
       solution,
       this.solvedness,
     );
@@ -67,6 +71,10 @@ class SolvedGrid {
 
 type SolvedGridTransform = "overlay" | { grid_idx: number; scale_factor: number };
 
+//////////////////
+// OVERLAY GRID //
+//////////////////
+
 class OverlayGrid {
   puzzle: Puzzle;
 
@@ -78,6 +86,9 @@ class OverlayGrid {
   line_path: number[];
   ideal_line: LerpedLine;
   displayed_line: LerpedLine;
+
+  last_drawn_line: FadingLine | undefined;
+  fading_lines: FadingLine[];
 
   constructor(puzzle: Puzzle) {
     this.puzzle = puzzle;
@@ -92,17 +103,24 @@ class OverlayGrid {
 
     this.is_drawing_line = false;
     this.line_path = []; // List of vertex indices which make up the line being drawn
-    this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
-    this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
+    this.ideal_line = { path: [], disp_length: 0 };
+    this.displayed_line = { path: [], disp_length: 0 };
+
+    this.last_drawn_line = undefined;
+    this.fading_lines = [];
   }
 
   update(time_delta: number, mouse: MouseUpdate, transform: Transform): void {
+    // Handle mouse events
     mouse = transform_mouse_update(mouse, transform.inv());
-
     if (mouse.button_clicked) this.on_mouse_down(mouse.pos);
     if (mouse.button_released) this.on_mouse_up();
     this.handle_mouse_move(mouse);
 
+    // Remove any fully faded lines
+    retain(this.fading_lines, (l) => l.fadedness.get() > 0);
+
+    // Update the line being drawn
     if (this.is_drawing_line) {
       this.update_ideal_line(mouse.pos);
     }
@@ -110,6 +128,7 @@ class OverlayGrid {
   }
 
   draw(transform: Transform): void {
+    // Get solution
     let solution = undefined;
     if (this.solution) {
       solution = {
@@ -117,14 +136,16 @@ class OverlayGrid {
         pip_idxs_per_cell: this.solution.pip_idxs_per_cell,
       };
     }
-    draw_grid(
-      transform,
-      this.puzzle,
-      DEFAULT_COLOR_SET,
-      [this.displayed_line],
-      solution,
-      this.solvedness,
-    );
+    // Get lines
+    let lines = [];
+    let push_fading_line = ({ line, fadedness }: FadingLine) => {
+      lines.push({ line, fadedness: fadedness.get() });
+    };
+    for (const line of this.fading_lines) push_fading_line(line);
+    if (this.last_drawn_line) push_fading_line(this.last_drawn_line);
+    lines.push({ line: this.displayed_line, fadedness: 0.0 });
+    // Draw grid
+    draw_grid(transform, this.puzzle, DEFAULT_COLOR_SET, lines, solution, this.solvedness);
   }
 
   /* ===== MOUSE HANDLING ===== */
@@ -136,10 +157,7 @@ class OverlayGrid {
       // Mouse is close enough to a vertex to start a line
       this.line_path = [nearestVert.vert_idx];
       this.is_drawing_line = true;
-    } else if (
-      local_mouse_pos.x >= 0 && local_mouse_pos.x <= this.puzzle.grid_bbox.width() &&
-      local_mouse_pos.y >= 0 && local_mouse_pos.y <= this.puzzle.grid_bbox.height()
-    ) {
+    } else if (this.puzzle.grid_bbox.contains(local_mouse_pos)) {
       this.line_path = []; // Mouse is on the grid but can't start a line
     } else {
       return false; // Mouse is fully off the grid, so don't register the click
@@ -147,9 +165,13 @@ class OverlayGrid {
 
     // If the grid was clicked, remove current solution
     this.solvedness.animate_to(false);
-
+    // Make all existing faded lines disappear
+    for (const { fadedness } of this.fading_lines) {
+      fadedness.animate_to(1.0);
+    }
     // Reset ideal line
-    this.ideal_line = { path: [...this.line_path], disp_length: 0, was_short_line: false };
+    this.ideal_line = { path: [...this.line_path], disp_length: 0 };
+    this.displayed_line = { ...this.ideal_line };
     return true;
   }
 
@@ -185,14 +207,24 @@ class OverlayGrid {
 
     this.is_drawing_line = false;
 
+    // Cause all currently faded lines to fade fully
+    if (this.last_drawn_line) {
+      this.last_drawn_line.fadedness.animate_to(1.0);
+      this.fading_lines.push(this.last_drawn_line);
+    }
+
     // Check the user's solution
     const is_line_loop = this.line_path.length > 1 &&
       this.line_path[0] === this.line_path[this.line_path.length - 1] &&
       this.ideal_line.disp_length === this.ideal_line.path.length - 1;
     if (!is_line_loop) {
-      if (this.ideal_line.disp_length < MIN_LINE_LENGTH_TO_KEEP) {
-        this.ideal_line = { path: [], disp_length: 0, was_short_line: true };
-      }
+      // Fade the currently drawn line
+      this.last_drawn_line = {
+        line: this.ideal_line,
+        fadedness: new Tween<number>(0.0, LINE_FADE_TIME, lerp).animate_to(LINE_FADE_AMOUNT),
+      };
+
+      this.ideal_line = { path: [], disp_length: 0 };
       return; // Can't solve the puzzle if the line doesn't form a loop
     }
     let solution = this.puzzle.get_solution(this.line_path);
@@ -282,7 +314,6 @@ class OverlayGrid {
     this.ideal_line = {
       path: ideal_line_path,
       disp_length: ideal_line_path.length - 1 - lerp_factor,
-      was_short_line: false,
     };
 
     // If the line is close to becoming a loop, snap the line to close the loop.
@@ -327,10 +358,6 @@ class OverlayGrid {
     if (common_prefix_length <= 1) {
       lerp_speed_factor = this.is_drawing_line ? 1500 : 1000;
       max_speed = this.is_drawing_line ? 20000 : 10000;
-      if (this.ideal_line.was_short_line) {
-        lerp_speed_factor = 200;
-        min_speed = 50;
-      }
     }
     let distance_to_travel = Math.abs(this.displayed_line.disp_length - length_to_animate_to) +
       Math.abs(this.ideal_line.disp_length - length_to_animate_to);
@@ -427,11 +454,31 @@ class OverlayGrid {
   }
 }
 
+type FadingLine = {
+  line: LerpedLine;
+  fadedness: Tween<number>;
+};
+
+type LerpedLine = {
+  path: number[];
+  disp_length: number;
+};
+
+type FullSolution = {
+  time: number;
+  inner: Solution;
+  pip_idxs_per_cell: number[][];
+};
+
+//////////////////
+// DRAWING CODE //
+//////////////////
+
 function draw_grid(
   transform: Transform,
   puzzle: Puzzle,
   color_set: ColorSet,
-  lines: LerpedLine[],
+  lines: { line: LerpedLine; fadedness: number }[],
   solution: { is_correct: boolean; pip_idxs_per_cell: number[][] } | undefined,
   solvedness: BoolTween,
 ): void {
@@ -442,10 +489,9 @@ function draw_grid(
     return;
   }
 
-  let color_lerped_with_solution = (color: Color) => {
+  let color_lerped_with_solution = (color: Color): Color => {
     let is_correct = solution && solution.is_correct;
-    return Color.lerp(color, is_correct ? CORRECT_COLOR : INCORRECT_COLOR, solvedness.factor())
-      .to_canvas_color();
+    return Color.lerp(color, is_correct ? CORRECT_COLOR : INCORRECT_COLOR, solvedness.factor());
   };
 
   // Update canvas's transformation matrix to the puzzle's local space
@@ -485,8 +531,11 @@ function draw_grid(
   ctx.lineWidth = EDGE_WIDTH;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const line of lines) {
-    ctx.strokeStyle = color_lerped_with_solution(LINE_COLOR);
+  for (const { line, fadedness } of lines) {
+    let unfaded_color = color_lerped_with_solution(LINE_COLOR);
+    let faded_color = Color.lerp(unfaded_color, GRID_COLOR, fadedness).to_canvas_color();
+
+    ctx.strokeStyle = faded_color;
     ctx.beginPath();
     // Draw all full edges in the displayed line
     for (let i = 0; i < line.disp_length; i++) {
@@ -515,7 +564,7 @@ function draw_grid(
     // Draw the first vertex for non-loops
     if (!is_loop && line.path.length > 0) {
       const { x, y } = puzzle.verts[line.path[0]];
-      ctx.fillStyle = color_lerped_with_solution(LINE_COLOR);
+      ctx.fillStyle = faded_color;
       ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
     }
   }
@@ -532,7 +581,7 @@ function draw_grid(
     }
   }
   // Draw these pips
-  ctx.fillStyle = color_lerped_with_solution(color_set.pip_color);
+  ctx.fillStyle = color_lerped_with_solution(color_set.pip_color).to_canvas_color();
   for (const { x, y } of pip_coords) {
     ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
   }
@@ -572,24 +621,6 @@ function pip_coords(puzzle: Puzzle, cell_idx: number, pip_idx: number, num_pips:
   const pattern_coord = dice_pattern(num_pips)[pip_idx];
   return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
 }
-
-type LerpedLine = {
-  path: number[];
-  disp_length: number;
-  was_short_line: boolean;
-};
-
-type MousePos = {
-  local_pos: Vec2;
-  vert_idx: number;
-  vert_distance: number;
-};
-
-type FullSolution = {
-  time: number;
-  inner: Solution;
-  pip_idxs_per_cell: number[][];
-};
 
 /// Compute the (normalised) coordinates of the pips on the dice pattern of a given number.
 function dice_pattern(num_pips: number): Vec2[] {
