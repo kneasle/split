@@ -443,9 +443,13 @@ class OverlayGrid {
   }
 
   is_stashable(): boolean {
+    return this.has_finished_solve_animation(2.0);
+  }
+
+  has_finished_solve_animation(factor = 1.0): boolean {
     return this.is_correctly_solved() &&
-      // TODO: Add extra factor for other animations
-      uneased_anim_factor(this.solution!.time, SOLVE_ANIMATION_TIME) >= 2.0;
+      // TODO: Add custom factor for other animations
+      uneased_anim_factor(this.solution!.time, SOLVE_ANIMATION_TIME) >= factor;
   }
 
   is_correctly_solved(): boolean {

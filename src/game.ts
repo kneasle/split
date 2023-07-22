@@ -181,6 +181,18 @@ class Game {
         .then(this.puzzle_world_transform);
       this.overlay_tween.animate_to(false);
     }
+    // If any changes are made to the overlay while the puzzle is solved but not yet stashed,
+    // force the stashing animation to start just before changing the puzzle
+    let focussed_puzzle_idx = this.focussed_puzzle();
+    if (focussed_puzzle_idx !== undefined) {
+      let focussed_puzzle_set = this.puzzle_sets[focussed_puzzle_idx];
+      if (
+        (go_prev || go_next || should_close) &&
+        focussed_puzzle_set.overlay_grid.has_finished_solve_animation()
+      ) {
+        this.stash_overlay_grid(focussed_puzzle_set);
+      }
+    }
 
     // Overlay grid (usually just one, but possibly many if we are animating between puzzles)
     let first_puzzle_on_screen = Math.floor(this.focussed_puzzle_tween.get());
