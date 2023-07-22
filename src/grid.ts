@@ -53,6 +53,12 @@ class SolvedGrid {
     return this.transform_tween.source === "overlay" &&
       this.transform_tween.uneased_anim_factor() < 1;
   }
+
+  is_fully_faded(): boolean {
+    return this.transform_tween.target !== "overlay" &&
+      this.transform_tween.target.scale_factor === 0 &&
+      this.transform_tween.uneased_anim_factor() >= 1;
+  }
 }
 
 type SolvedGridTransform = "overlay" | { grid_idx: number; scale_factor: number };

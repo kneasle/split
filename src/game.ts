@@ -30,34 +30,24 @@ class Game {
       let transform = this.unanimated_overlay_grid_transform(focussed_puzzle_set);
       focussed_puzzle_set.overlay_grid.update(time_delta, mouse, transform);
 
+      // If the overlay grid has just been solved, move it to the puzzle world
       if (focussed_puzzle_set.overlay_grid.has_just_become_stashable()) {
         this.stash_overlay_grid(focussed_puzzle_set);
       }
     }
 
-    // TODO: Remove any grids which have fully faded
-    // retain(this.fading_grids, (grid) => grid.transform().scale > 0);
-
-    // Trigger adding the solution on the overlay grid to puzzle scene
-
-    /*
-    // If the grid is playing its solve animation, delay any close requests until the animation is
-    // complete
-    const is_waiting_for_solve_animation = this.overlay.grid.is_correctly_solved() &&
-      !this.overlay.grid.is_ready_to_be_stashed();
-    if (this.overlay.should_close && !is_waiting_for_solve_animation) {
-      this.overlay.tween.animate_to(0);
-      this.overlay.should_close = false;
-    }
-    */
+    // Remove any grids which have fully faded
+    retain(this.solved_grids, (grid) => !grid.is_fully_faded());
   }
 
   draw(gui: Gui): void {
     /* BACKGROUND */
+
     ctx.fillStyle = BG_COLOR.to_canvas_color();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     /* PUZZLE WORLD */
+
     let camera_transform = this.camera_transform();
     // Puzzles
     for (let i = 0; i < this.puzzle_sets.length; i++) {
