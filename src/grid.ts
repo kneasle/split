@@ -83,7 +83,7 @@ class OverlayGrid {
   stashable_last_frame: boolean;
 
   is_drawing_line: boolean;
-  line_path: number[];
+  line_path: number[]; // TODO: Can this be merged with `ideal_line.path`?
   ideal_line: LerpedLine;
   displayed_line: LerpedLine;
 
@@ -212,6 +212,9 @@ class OverlayGrid {
       this.last_drawn_line.fadedness.animate_to(1.0);
       this.fading_lines.push(this.last_drawn_line);
     }
+
+    // Add the final vertex if the ideal line has already snapped to a loop
+    this.line_path = [...this.ideal_line.path];
 
     // Check the user's solution
     const is_line_loop = this.line_path.length > 1 &&

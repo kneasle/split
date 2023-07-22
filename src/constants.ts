@@ -46,8 +46,7 @@ const PIP_PATTERN_RADIUS = 0.2;
 const PIP_SIZE = 0.12;
 // Grid Interaction
 const VERTEX_INTERACTION_RADIUS = 0.4;
-const MIN_LINE_LENGTH_TO_KEEP = 0.4; // Edges; any line shorter than this will get removed after drawing
-const LOOP_CLOSE_SNAP_DISTANCE = 0.4; // Edges; distance at which a line will be snapped to complete a loop
+const LOOP_CLOSE_SNAP_DISTANCE = 0.8; // Edges; distance at which a line will be snapped to complete a loop
 // Grid Animations
 const SOLVE_ANIMATION_TIME = 0.7; // Seconds
 const LINE_FADE_TIME = 0.5; // Seconds
