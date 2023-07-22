@@ -120,6 +120,12 @@ class Tween<T> {
     return this.get_with_lerp_fn(this._lerp_fn);
   }
 
+  /// Gets the lerped value, using `(a, b, t) => lerp_fn(pre_fn(a), pre_fn(b), t)` as the
+  /// interpolation function
+  get_with_pre_and_lerp_fn<I, V>(pre_fn: (a: T) => I, lerp_fn: (a: I, b: I, t: number) => V) {
+    return this.get_with_lerp_fn((a, b, t) => lerp_fn(pre_fn(a), pre_fn(b), t));
+  }
+
   get_with_lerp_fn<V>(lerp_fn: (a: T, b: T, t: number) => V): V {
     return lerp_fn(this.source, this.target, this.eased_anim_factor());
   }

@@ -1,5 +1,62 @@
-/// An instance of a puzzle grid on the screen
-class Grid {
+class SolvedGrid {
+  puzzle: Puzzle;
+  transform_tween: Tween<SolvedGridTransform>;
+
+  solvedness: BoolTween;
+  pip_idxs_per_cell_unsolved: number[][];
+  pip_idxs_per_cell_solved: number[][];
+  solution_line: number[];
+  pip_group_size: number;
+
+  constructor(
+    grid: OverlayGrid,
+    start_transform: SolvedGridTransform,
+    target_transform?: SolvedGridTransform,
+  ) {
+    this.puzzle = grid.puzzle;
+    this.transform_tween = new Tween<SolvedGridTransform>(
+      start_transform,
+      GRID_MOVE_ANIMATION_TIME,
+      (a, b, t) => t === 0 ? a : b,
+    );
+    if (target_transform) this.transform_tween.animate_to(target_transform);
+
+    this.solvedness = new BoolTween(false, SOLVE_ANIMATION_TIME);
+    this.pip_idxs_per_cell_unsolved = grid.pip_idxs_per_cell;
+    this.pip_idxs_per_cell_solved = grid.solution!.pip_idxs_per_cell;
+    this.solution_line = grid.line_path;
+    this.pip_group_size = grid.solution!.inner.pip_group_size;
+  }
+
+  draw(transform: Transform): void {
+    const line = {
+      was_short_line: false,
+      disp_length: this.solution_line.length - 1, // - 1 because first/last vertices are the same
+      path: this.solution_line,
+    };
+    const solution = {
+      is_correct: true,
+      pip_idxs_per_cell: this.pip_idxs_per_cell_solved,
+    };
+    draw_grid(
+      transform,
+      this.puzzle,
+      [line],
+      this.pip_idxs_per_cell_unsolved,
+      solution,
+      this.solvedness,
+    );
+  }
+
+  is_animating_out_of_overlay(): boolean {
+    return this.transform_tween.source === "overlay" &&
+      this.transform_tween.uneased_anim_factor() < 1;
+  }
+}
+
+type SolvedGridTransform = "overlay" | { grid_idx: number; scale_factor: number };
+
+class OverlayGrid {
   puzzle: Puzzle;
   pip_idxs_per_cell: number[][]; // List of pip idxs per cell
 
@@ -55,94 +112,21 @@ class Grid {
   }
 
   draw(transform: Transform): void {
-    // Update canvas's transformation matrix to the puzzle's local space
-    ctx.save();
-    transform.apply_to_canvas(ctx);
-
-    // Cell
-    ctx.fillStyle = CELL_COLOR.to_canvas_color();
-    for (const c of this.puzzle.cells) {
-      ctx.beginPath();
-      for (const v of c.verts) {
-        ctx.lineTo(this.puzzle.verts[v].x, this.puzzle.verts[v].y);
-      }
-      ctx.fill();
+    let solution = undefined;
+    if (this.solution) {
+      solution = {
+        is_correct: this.solution.inner.is_correct,
+        pip_idxs_per_cell: this.solution.pip_idxs_per_cell,
+      };
     }
-
-    // Edges
-    ctx.lineWidth = EDGE_WIDTH;
-    ctx.strokeStyle = GRID_COLOR.to_canvas_color();
-    for (const e of this.puzzle.edges) {
-      let v1 = this.puzzle.verts[e.v1];
-      let v2 = this.puzzle.verts[e.v2];
-      ctx.beginPath();
-      ctx.moveTo(v1.x, v1.y);
-      ctx.lineTo(v2.x, v2.y);
-      ctx.stroke();
-    }
-
-    // Vertices
-    for (let v_idx = 0; v_idx < this.puzzle.verts.length; v_idx++) {
-      const { x, y } = this.puzzle.verts[v_idx];
-      ctx.fillStyle = GRID_COLOR.to_canvas_color();
-      ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
-    }
-
-    // Line
-    let line = this.displayed_line;
-
-    ctx.lineWidth = EDGE_WIDTH;
-    ctx.strokeStyle = this.color_lerped_with_solution(LINE_COLOR);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    // Draw all full edges in the displayed line
-    for (let i = 0; i < line.disp_length; i++) {
-      let vert = this.puzzle.verts[line.path[i]];
-      ctx.lineTo(vert.x, vert.y);
-    }
-    // Interpolate the final, possibly partial segment
-    if (line.path.length >= 2 && line.disp_length < line.path.length) {
-      let vert1 = this.puzzle.verts[line.path[Math.floor(line.disp_length)]];
-      let vert2 = this.puzzle.verts[line.path[Math.ceil(line.disp_length)]];
-      let lerp_factor = line.disp_length % 1;
-      ctx.lineTo(
-        lerp(vert1.x, vert2.x, lerp_factor),
-        lerp(vert1.y, vert2.y, lerp_factor),
-      );
-    }
-    // For loops, draw the first line segment twice to avoid a sharp corner at the first vertex
-    if (
-      line.disp_length > 1 && line.disp_length > line.path.length - 0.01 &&
-      line.path[0] === line.path[line.path.length - 1]
-    ) {
-      let vert = this.puzzle.verts[line.path[1]];
-      ctx.lineTo(vert.x, vert.y);
-    }
-    ctx.stroke();
-
-    // Determine pip coords (including solve animations)
-    let num_pips = this.puzzle.total_num_pips;
-    let pip_coords = this.all_pip_coords(this.pip_idxs_per_cell);
-    if (this.solution !== undefined) {
-      let solved_pip_coords = this.all_pip_coords(this.solution.pip_idxs_per_cell);
-      for (let i = 0; i < num_pips; i++) {
-        // Lerp all the pips
-        let factor = this.solvedness.staggered_factor(i, num_pips, PIP_ANIMATION_SPREAD);
-        pip_coords[i] = Vec2.lerp(pip_coords[i], solved_pip_coords[i], factor);
-      }
-    }
-    // Draw these pips
-    ctx.fillStyle = this.color_lerped_with_solution(PIP_COLOR);
-    for (const { x, y } of pip_coords) {
-      ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
-    }
-
-    ctx.restore();
-  }
-
-  private color_lerped_with_solution(color: Color): string {
-    return Color.lerp(color, this.solution_color(), this.solvedness.factor()).to_canvas_color();
+    draw_grid(
+      transform,
+      this.puzzle,
+      [this.displayed_line],
+      this.pip_idxs_per_cell,
+      solution,
+      this.solvedness,
+    );
   }
 
   /* ===== MOUSE HANDLING ===== */
@@ -422,25 +406,6 @@ class Grid {
     return { centroid, symmetry_line_directions };
   }
 
-  all_pip_coords(pip_idxs_per_cell: number[][]): Vec2[] {
-    let pip_coords = [];
-    for (let i = 0; i < this.puzzle.total_num_pips; i++) pip_coords.push(Vec2.ZERO);
-
-    for (let c = 0; c < this.puzzle.cells.length; c++) {
-      let pip_idxs = pip_idxs_per_cell[c];
-      for (let p = 0; p < pip_idxs.length; p++) {
-        pip_coords[pip_idxs[p]] = this.pip_coords(c, p, pip_idxs.length);
-      }
-    }
-    return pip_coords;
-  }
-
-  pip_coords(cell_idx: number, pip_idx: number, num_pips: number): Vec2 {
-    const cell = this.puzzle.cells[cell_idx];
-    const pattern_coord = dice_pattern(num_pips)[pip_idx];
-    return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
-  }
-
   /* ===== HELPERS ===== */
 
   has_just_become_stashable(): boolean {
@@ -462,6 +427,131 @@ class Grid {
   solution_color(): Color {
     return this.is_correctly_solved() ? CORRECT_COLOR : INCORRECT_COLOR;
   }
+}
+
+function draw_grid(
+  transform: Transform,
+  puzzle: Puzzle,
+  lines: LerpedLine[],
+  pip_idxs_per_cell: number[][],
+  solution: { is_correct: boolean; pip_idxs_per_cell: number[][] } | undefined,
+  solvedness: BoolTween,
+) {
+  let color_lerped_with_solution = (color: Color) => {
+    let is_correct = solution && solution.is_correct;
+    return Color.lerp(color, is_correct ? CORRECT_COLOR : INCORRECT_COLOR, solvedness.factor())
+      .to_canvas_color();
+  };
+
+  // Update canvas's transformation matrix to the puzzle's local space
+  ctx.save();
+  transform.apply_to_canvas(ctx);
+
+  // Cell
+  ctx.fillStyle = CELL_COLOR.to_canvas_color();
+  for (const c of puzzle.cells) {
+    ctx.beginPath();
+    for (const v of c.verts) {
+      ctx.lineTo(puzzle.verts[v].x, puzzle.verts[v].y);
+    }
+    ctx.fill();
+  }
+
+  // Edges
+  ctx.lineWidth = EDGE_WIDTH;
+  ctx.strokeStyle = GRID_COLOR.to_canvas_color();
+  for (const e of puzzle.edges) {
+    let v1 = puzzle.verts[e.v1];
+    let v2 = puzzle.verts[e.v2];
+    ctx.beginPath();
+    ctx.moveTo(v1.x, v1.y);
+    ctx.lineTo(v2.x, v2.y);
+    ctx.stroke();
+  }
+
+  // Vertices
+  ctx.fillStyle = GRID_COLOR.to_canvas_color();
+  for (let v_idx = 0; v_idx < puzzle.verts.length; v_idx++) {
+    const { x, y } = puzzle.verts[v_idx];
+    ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
+  }
+
+  // Line
+  ctx.lineWidth = EDGE_WIDTH;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const line of lines) {
+    ctx.strokeStyle = color_lerped_with_solution(LINE_COLOR);
+    ctx.beginPath();
+    // Draw all full edges in the displayed line
+    for (let i = 0; i < line.disp_length; i++) {
+      let vert = puzzle.verts[line.path[i]];
+      ctx.lineTo(vert.x, vert.y);
+    }
+    // Interpolate the final, possibly partial segment
+    if (line.path.length >= 2 && line.disp_length < line.path.length) {
+      let vert1 = puzzle.verts[line.path[Math.floor(line.disp_length)]];
+      let vert2 = puzzle.verts[line.path[Math.ceil(line.disp_length)]];
+      let lerp_factor = line.disp_length % 1;
+      ctx.lineTo(
+        lerp(vert1.x, vert2.x, lerp_factor),
+        lerp(vert1.y, vert2.y, lerp_factor),
+      );
+    }
+    const is_loop = line.disp_length > 1 &&
+      line.disp_length > line.path.length - 1.01 &&
+      line.path[0] === line.path[line.path.length - 1];
+    // For loops, draw the first line segment twice to avoid a sharp corner at the first vertex
+    if (is_loop) {
+      let vert = puzzle.verts[line.path[1]];
+      ctx.lineTo(vert.x, vert.y);
+    }
+    ctx.stroke();
+    // Draw the first vertex for non-loops
+    if (!is_loop && line.path.length > 0) {
+      const { x, y } = puzzle.verts[line.path[0]];
+      ctx.fillStyle = color_lerped_with_solution(LINE_COLOR);
+      ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
+    }
+  }
+
+  // Determine pip coords (including solve animations)
+  let num_pips = puzzle.total_num_pips;
+  let pip_coords = all_pip_coords(puzzle, pip_idxs_per_cell);
+  if (solution !== undefined) {
+    let solved_pip_coords = all_pip_coords(puzzle, solution.pip_idxs_per_cell);
+    for (let i = 0; i < num_pips; i++) {
+      // Lerp all the pips
+      let factor = solvedness.staggered_factor(i, num_pips, PIP_ANIMATION_SPREAD);
+      pip_coords[i] = Vec2.lerp(pip_coords[i], solved_pip_coords[i], factor);
+    }
+  }
+  // Draw these pips
+  ctx.fillStyle = color_lerped_with_solution(PIP_COLOR);
+  for (const { x, y } of pip_coords) {
+    ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
+  }
+
+  ctx.restore();
+}
+
+function all_pip_coords(puzzle: Puzzle, pip_idxs_per_cell: number[][]): Vec2[] {
+  let all_pip_coords = [];
+  for (let i = 0; i < puzzle.total_num_pips; i++) all_pip_coords.push(Vec2.ZERO);
+
+  for (let c = 0; c < puzzle.cells.length; c++) {
+    let pip_idxs = pip_idxs_per_cell[c];
+    for (let p = 0; p < pip_idxs.length; p++) {
+      all_pip_coords[pip_idxs[p]] = pip_coords(puzzle, c, p, pip_idxs.length);
+    }
+  }
+  return all_pip_coords;
+}
+
+function pip_coords(puzzle: Puzzle, cell_idx: number, pip_idx: number, num_pips: number): Vec2 {
+  const cell = puzzle.cells[cell_idx];
+  const pattern_coord = dice_pattern(num_pips)[pip_idx];
+  return cell.centre.add(pattern_coord.mul(PIP_PATTERN_RADIUS));
 }
 
 type LerpedLine = {

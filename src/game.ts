@@ -5,11 +5,6 @@ class Game {
   /* Puzzle world */
   puzzle_world_transform: Transform;
   puzzle_sets: PuzzleSet[];
-  fading_grids: {
-    position: Vec2;
-    scale_tween: Tween<number>;
-    grid: Grid;
-  }[];
 
   last_clicked_puzzle = 0; // Puzzle that was clicked on to open the overlay
   focussed_puzzle_tween: Tween<number>; // Tweens between puzzle numbers
@@ -19,7 +14,6 @@ class Game {
     // Puzzle world
     this.puzzle_world_transform = Transform.scale(DEFAULT_ZOOM);
     this.puzzle_sets = puzzle_sets;
-    this.fading_grids = [];
 
     this.focussed_puzzle_tween = new Tween<number>(0, PUZZLE_FOCUS_TIME, lerp);
     this.overlay_tween = new BoolTween(false, PUZZLE_FOCUS_TIME);
@@ -33,107 +27,16 @@ class Game {
       let focussed_puzzle_set = this.puzzle_sets[puzzle_idx];
       let transform = this.unanimated_overlay_grid_transform(focussed_puzzle_set);
       focussed_puzzle_set.overlay_grid.update(time_delta, mouse, transform);
+
+      if (focussed_puzzle_set.overlay_grid.has_just_become_stashable()) {
+        this.stash_overlay_grid(focussed_puzzle_set);
+      }
     }
 
     // TODO: Remove any grids which have fully faded
     // retain(this.fading_grids, (grid) => grid.transform().scale > 0);
 
-    for (const ps of this.puzzle_sets) {
-      let needs_sorting = false;
-      for (const g of ps.grids) {
-        if (g.has_just_become_stashable()) {
-          needs_sorting = true;
-          // Note that we don't short circuit here because we need 'has_just_become_stashable'
-          // to be called every frame.
-        }
-      }
-
-      if (needs_sorting) {
-        // Sort grids by solution number, tie-breaking by solution time
-        ps.grids = sort_by_key(ps.grids, (grid) => {
-          let is_correct_soln = grid.solution !== undefined && grid.solution.is_correct;
-          return is_correct_soln
-            ? [grid.solution?.pip_group_size, grid.solution?.time]
-            : [Number.MAX_VALUE, 0];
-        });
-        // Strip out any duplicate solutions and fade them
-        // TODO: Handle the case where someone edits a grid that isn't last
-        let grids_to_fade = [];
-        let grids_to_keep = [];
-        for (let g = 0; g < ps.grids.length; g++) {
-          if (
-            g + 1 < ps.grids.length &&
-            ps.grids[g].solution &&
-            ps.grids[g + 1].solution &&
-            ps.grids[g].solution?.pip_group_size == ps.grids[g + 1].solution?.pip_group_size
-          ) {
-            // Next grid has the same number and is newer, so we fade this one
-            grids_to_fade.push(ps.grids[g]);
-          } else {
-            // Next grid has different number, so we keep this one
-            grids_to_keep.push(ps.grids[g]);
-          }
-        }
-
-        // Keep all of `grids_to_keep`
-        ps.grids = grids_to_keep;
-        // Fade the `fading_grids`
-        this.fading_grids.push(...grids_to_fade.map((grid: Grid) => {
-          return {
-            position: Vec2.ZERO,
-            scale_tween: new Tween<number>(1.0, GRID_FADE_ANIMATION_TIME, lerp).animate_to(0.0),
-            grid,
-          };
-        }));
-        // Replenish the grids we lost
-        for (let s = ps.grids.length; s < ps.puzzle.num_solutions; s++) {
-          // TODO:
-          // ps.grids.push(new Grid(ps.puzzle, ps.grid_transform(s)));
-        }
-
-        // TODO: Animate all grids to their new positions
-        // for (let g = 0; g < ps.grids.length; g++) {
-        //   ps.grids[g].transform_tween.animate_to(ps.grid_transform(g));
-        // }
-      }
-    }
-
     // Trigger adding the solution on the overlay grid to puzzle scene
-    /*
-    if (this.overlay.grid.is_ready_to_be_stashed()) {
-      let { grid, puzzle_idx } = this.overlay;
-      let solved_grids = this.puzzle_sets[puzzle_idx].grids;
-      const pip_group_size = grid.solution!.pip_group_size;
-      // Decide where the new grid should go to keep the grids sorted by solution
-      let idx_of_solved_grid = 0;
-      while (true) {
-        if (idx_of_solved_grid === solved_grids.length) break;
-        let solution = solved_grids[idx_of_solved_grid].solution;
-        if (solution && solution.pip_group_size >= pip_group_size) break;
-        idx_of_solved_grid++;
-      }
-      // Add the new grid, replacing an existing grid if that grid has the same count
-      let i = idx_of_solved_grid;
-      if (solved_grids[i] && solved_grids[i].solution!.pip_group_size === pip_group_size) {
-        solved_grids[i].transform_tween.animate_to(
-          Transform.scale(0).then(this.puzzle_sets[puzzle_idx].grid_transform(i)),
-        );
-        this.fading_grids.push(solved_grids[i]);
-        solved_grids[i] = grid;
-      } else {
-        solved_grids.splice(idx_of_solved_grid, 0, grid);
-      }
-      // Animate all the puzzle's grids to their new positions
-      for (let i = 0; i < solved_grids.length; i++) {
-        solved_grids[i].transform_tween.animate_to(this.puzzle_sets[puzzle_idx].grid_transform(i));
-      }
-      // Create a new main grid to replace the old one, and immediately start an animation
-      this.overlay.grid = new Grid(this.puzzle_sets[puzzle_idx].puzzle, "tiny");
-      if (!this.overlay.should_close) {
-        this.overlay.grid.transform_tween.animate_to("overlay");
-      }
-    }
-    */
 
     /*
     // If the grid is playing its solve animation, delay any close requests until the animation is
@@ -169,15 +72,7 @@ class Game {
       ctx.fillText(`#${i + 1}`, rect.min.x - camera_transform.scale * 0.1, rect.centre().y);
     }
     // Grids
-    for (const f of this.fading_grids) {
-      f.grid.draw(Transform.scale(f.scale_tween.get()).then_translate(f.position));
-    }
-    for (let p = 0; p < this.puzzle_sets.length; p++) {
-      let puzzle = this.puzzle_sets[p];
-      for (let g = 0; g < puzzle.grids.length; g++) {
-        puzzle.grids[g].draw(puzzle.grid_transform(g).then(camera_transform));
-      }
-    }
+    this.draw_solved_grids((g) => !g.is_animating_out_of_overlay());
 
     /* OVERLAY LAYER */
 
@@ -272,7 +167,7 @@ class Game {
       this.overlay_tween.animate_to(false);
     }
 
-    // Grids (usually just one, but possibly many if we are animating between puzzles)
+    // Overlay grid (usually just one, but possibly many if we are animating between puzzles)
     let first_puzzle_on_screen = Math.floor(this.focussed_puzzle_tween.get());
     let last_puzzle_on_screen = Math.ceil(this.focussed_puzzle_tween.get());
     for (let i = first_puzzle_on_screen; i <= last_puzzle_on_screen; i++) {
@@ -285,6 +180,24 @@ class Game {
           ),
         );
       puzzle_set.overlay_grid.draw(transform);
+    }
+
+    // Draw animating solved grids above all other layers
+    this.draw_solved_grids((g) => g.is_animating_out_of_overlay());
+  }
+
+  private draw_solved_grids(predicate: (g: SolvedGrid) => boolean): void {
+    for (let p = 0; p < this.puzzle_sets.length; p++) {
+      let puzzle_set = this.puzzle_sets[p];
+      for (const g of puzzle_set.grids) {
+        let transform = g.transform_tween.get_with_pre_and_lerp_fn(
+          (t) => this.convert_transform(puzzle_set, t),
+          Transform.lerp,
+        );
+        if (predicate(g)) {
+          g.draw(transform);
+        }
+      }
     }
   }
 
@@ -335,8 +248,8 @@ class Game {
       }
     }
 
-    // Always handle puzzle refocussing (even when editing a puzzle, since all puzzles are marked
-    // as not hovered)
+    // Always handle puzzle refocussing (this is written so that, when editing a puzzle, all
+    // puzzles will be marked as not hovered)
     let puzzle_under_cursor = this.puzzle_under_cursor(mouse);
     for (let i = 0; i < this.puzzle_sets.length; i++) {
       this.puzzle_sets[i].set_hovered(this.is_overlay_fully_off() && i === puzzle_under_cursor);
@@ -344,6 +257,42 @@ class Game {
   }
 
   /* HELPER FUNCTIONS */
+
+  stash_overlay_grid(puzzle_set: PuzzleSet): void {
+    const solution = puzzle_set.overlay_grid.solution!;
+    const pip_group_size = solution.inner.pip_group_size;
+    // Fade any existing grid(s) with this solution size (there should only be one)
+    for (const g of puzzle_set.grids) {
+      if (g.pip_group_size === pip_group_size) {
+        let curr_transform = g.transform_tween.get();
+        if (curr_transform !== "overlay") {
+          g.transform_tween.animate_to({ grid_idx: curr_transform.grid_idx, scale_factor: 0 });
+        }
+      }
+    }
+    // Animate the existing grid to this new position
+    let grid_idx = puzzle_set.puzzle.solutions.findIndex((x) => x === pip_group_size);
+    console.log(grid_idx);
+    let solved_grid = new SolvedGrid(
+      puzzle_set.overlay_grid,
+      "overlay",
+      { grid_idx, scale_factor: 1 },
+    );
+    puzzle_set.grids.push(solved_grid);
+    // Create a new main grid to replace the old one
+    puzzle_set.overlay_grid = new OverlayGrid(puzzle_set.puzzle);
+  }
+
+  convert_transform(puzzle_set: PuzzleSet, t: SolvedGridTransform): Transform {
+    if (t === "overlay") {
+      return this.unanimated_overlay_grid_transform(puzzle_set);
+    } else {
+      return Transform
+        .scale(t.scale_factor)
+        .then(puzzle_set.grid_transform(t.grid_idx))
+        .then(this.camera_transform());
+    }
+  }
 
   is_overlay_fully_on(): boolean {
     return this.overlay_factor() === 1.0;
@@ -392,143 +341,144 @@ class Game {
 // Create puzzle patterns
 let _puzzles = [
   // Intro
-  { num_solutions: 1, pattern: "11" },
-  { num_solutions: 1, pattern: "211" },
-  { num_solutions: 1, pattern: "123" },
-  { num_solutions: 1, pattern: "21|1." },
-  { num_solutions: 1, pattern: "111" },
-  { num_solutions: 2, pattern: "2112" },
-  { num_solutions: 2, pattern: "11|11" },
-  { num_solutions: 1, pattern: "11|1." },
-  { num_solutions: 2, pattern: ".1.|1.1|.1." },
-  { num_solutions: 3, pattern: "111|111" },
-  { num_solutions: 2, pattern: "111|111|111" },
-  { num_solutions: 1, pattern: "111|181|111" },
-  { num_solutions: 1, pattern: "811|111|111" },
-  { num_solutions: 1, pattern: "711|111|117" },
+  { solutions: [1], pattern: "11" },
+  { solutions: [2], pattern: "211" },
+  { solutions: [3], pattern: "123" },
+  { solutions: [2], pattern: "21|1." },
+  { solutions: [1], pattern: "111" },
+  { solutions: [2, 3], pattern: "2112" },
+  { solutions: [1, 2], pattern: "11|11" },
+  { solutions: [1], pattern: "11|1." },
+  { solutions: [1, 2], pattern: ".1.|1.1|.1." },
+  { solutions: [1, 2, 3], pattern: "111|111" },
+  { solutions: [1, 3], pattern: "111|111|111" },
+  { solutions: [8], pattern: "111|181|111" },
+  { solutions: [8], pattern: "811|111|111" },
+  { solutions: [7], pattern: "711|111|117" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "21|12" },
-  { num_solutions: 2, pattern: "21.|12.|..." },
-  { num_solutions: 1, pattern: "21.|12.|..2" },
-  { num_solutions: 2, pattern: "21..|12..|..2.|...." },
-  { num_solutions: 2, pattern: "21..|12..|....|...2" },
+  { solutions: [3], pattern: "21|12" },
+  { solutions: [2, 3], pattern: "21.|12.|..." },
+  { solutions: [4], pattern: "21.|12.|..2" },
+  { solutions: [2, 4], pattern: "21..|12..|..2.|...." },
+  { solutions: [2, 4], pattern: "21..|12..|....|...2" },
 
   // Cool set of puzzles
   // TODO: Do this whole set as 1+2=3 rather than 1+1=2
   // TODO: Prune this down a bit
-  { num_solutions: 1, pattern: "21|12" }, // TODO: This is a duplicate
-  { num_solutions: 2, pattern: "2.1|1.2" },
-  { num_solutions: 2, pattern: "2.2|1.1" },
-  { num_solutions: 2, pattern: "...|2.2|1.1" },
-  { num_solutions: 2, pattern: "2.2|...|1.1" },
-  { num_solutions: 2, pattern: "..2|.2.|1.1" },
-  { num_solutions: 2, pattern: "..2|12.|..1" },
-  { num_solutions: 2, pattern: "2.2|1..|..1" },
-  { num_solutions: 2, pattern: "22.|1..|..1" },
-  { num_solutions: 2, pattern: "222|1..|..1" },
-  { num_solutions: 2, pattern: "222|1.1|..." },
+  { solutions: [3], pattern: "21|12" }, // TODO: This is a duplicate
+  { solutions: [2, 3], pattern: "2.1|1.2" },
+  { solutions: [2, 3], pattern: "2.2|1.1" },
+  { solutions: [2, 3], pattern: "...|2.2|1.1" },
+  { solutions: [2, 3], pattern: "2.2|...|1.1" },
+  { solutions: [2, 3], pattern: "..2|.2.|1.1" },
+  { solutions: [2, 3], pattern: "..2|12.|..1" },
+  { solutions: [2, 3], pattern: "2.2|1..|..1" },
+  { solutions: [2, 3], pattern: "22.|1..|..1" },
+  { solutions: [2, 4], pattern: "222|1..|..1" },
+  { solutions: [2, 4], pattern: "222|1.1|..." },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: ".31|31.|1.." },
-  { num_solutions: 2, pattern: "331|31.|1.." },
-  { num_solutions: 3, pattern: ".31|31.|1.3" },
-  { num_solutions: 2, pattern: ".31|33.|1.1" },
+  { solutions: [3], pattern: ".31|31.|1.." },
+  { solutions: [3, 6], pattern: "331|31.|1.." },
+  { solutions: [3, 4, 6], pattern: ".31|31.|1.3" },
+  { solutions: [4, 6], pattern: ".31|33.|1.1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "123|2.1" },
-  { num_solutions: 1, pattern: ".2.|1.3|2.1" },
-  { num_solutions: 1, pattern: ".1.|2.3|2.1" },
+  { solutions: [3], pattern: "123|2.1" },
+  { solutions: [3], pattern: ".2.|1.3|2.1" },
+  { solutions: [3], pattern: ".1.|2.3|2.1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "1.1|2.2|1.1" },
-  { num_solutions: 2, pattern: "...|1.1|2.2|1.1" },
+  { solutions: [4], pattern: "1.1|2.2|1.1" },
+  { solutions: [2, 4], pattern: "...|1.1|2.2|1.1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: "21|21" },
-  { num_solutions: 1, pattern: ".21|.21" },
-  { num_solutions: 2, pattern: "221|..1" },
+  { solutions: [3], pattern: "21|21" },
+  { solutions: [3], pattern: ".21|.21" },
+  { solutions: [2, 3], pattern: "221|..1" },
 
   // Cool set of puzzles
-  { num_solutions: 1, pattern: ".2.|.2.|.2." },
-  { num_solutions: 2, pattern: ".2.|.2.|1.1" },
-  { num_solutions: 2, pattern: "1.1|.2.|1.1" },
-  { num_solutions: 2, pattern: "1.1|..2|1.1" },
-  { num_solutions: 2, pattern: "1.1|1.2|..1" },
+  { solutions: [2], pattern: ".2.|.2.|.2." },
+  { solutions: [2, 3], pattern: ".2.|.2.|1.1" },
+  { solutions: [2, 3], pattern: "1.1|.2.|1.1" },
+  { solutions: [2, 3], pattern: "1.1|..2|1.1" },
+  { solutions: [2, 3], pattern: "1.1|1.2|..1" },
 
   // Cool set of puzzles
-  { num_solutions: 2, pattern: "..2|2..|11." },
-  { num_solutions: 2, pattern: "..2|...|112" },
-  { num_solutions: 2, pattern: "..2|...|112" },
-  { num_solutions: 2, pattern: "2.2|...|112" },
-  { num_solutions: 2, pattern: "2.2|...|121" },
+  { solutions: [2, 3], pattern: "..2|2..|11." },
+  { solutions: [2, 3], pattern: "..2|...|112" },
+  { solutions: [2, 3], pattern: "..2|...|112" },
+  { solutions: [2, 4], pattern: "2.2|...|112" },
+  { solutions: [2, 4], pattern: "2.2|...|121" },
 
   // Cool set of puzzles
-  { num_solutions: 2, pattern: "313|...|131" },
-  { num_solutions: 3, pattern: "113|...|331" },
-  { num_solutions: 3, pattern: "111|...|333" },
-  { num_solutions: 2, pattern: "131|...|331" },
+  { solutions: [3, 4], pattern: "313|...|131" },
+  { solutions: [4, 6], pattern: "113|...|331" },
+  { solutions: [3, 4, 6], pattern: "111|...|333" },
+  { solutions: [4, 6], pattern: "131|...|331" },
 
   // 5,5,5 twizzly puzzles
-  // { num_solutions: 1, pattern: "21.|345" },
-  { num_solutions: 1, pattern: "23|5.|41" },
-  { num_solutions: 1, pattern: "15|.4|23" },
-  { num_solutions: 1, pattern: "253|...|4.1" },
-  { num_solutions: 1, pattern: ".....|2...3|4.5.1" },
-  { num_solutions: 1, pattern: "1..2.|3..4.|5...." },
-  { num_solutions: 1, pattern: "1..3|..5.|....|..4.|2..." },
-  { num_solutions: 1, pattern: "1...4|2.5.3|.....|....." },
-  { num_solutions: 2, pattern: "1...4|2.5.3|..5..|....." },
+  // { solutions: 1, pattern: "21.|345" },
+  { solutions: [5], pattern: "23|5.|41" },
+  { solutions: [5], pattern: "15|.4|23" },
+  { solutions: [5], pattern: "253|...|4.1" },
+  { solutions: [5], pattern: ".....|1...3|4.5.2" },
+  { solutions: [5], pattern: ".....|2...3|4.5.1" },
+  { solutions: [5], pattern: "1..2.|3..4.|5...." },
+  { solutions: [5], pattern: "1..3|..5.|....|..4.|2..." },
+  { solutions: [5], pattern: "1...4|2.5.3|.....|....." },
+  { solutions: [5, 10], pattern: "1...4|2.5.3|..5..|....." },
   // 7,7,7 twizzly puzzles
-  { num_solutions: 1, pattern: "321|456" },
-  { num_solutions: 1, pattern: "34|16|52" },
-  { num_solutions: 1, pattern: "351|...|426" },
-  { num_solutions: 1, pattern: "352|...|164" },
-  { num_solutions: 1, pattern: "342|...|165" },
-  { num_solutions: 1, pattern: "4.1|5..|..6|2.3" },
-  { num_solutions: 1, pattern: "1...3|.2...|...4.|5...6" },
-  { num_solutions: 1, pattern: "1...3|.4...|...2.|5...6" },
+  { solutions: [7], pattern: "321|456" },
+  { solutions: [7], pattern: "34|16|52" },
+  { solutions: [7], pattern: "351|...|426" },
+  { solutions: [7], pattern: "352|...|164" },
+  { solutions: [7], pattern: "342|...|165" },
+  { solutions: [7], pattern: "4.1|5..|..6|2.3" },
+  { solutions: [7], pattern: "1...3|.2...|...4.|5...6" },
+  { solutions: [7], pattern: "1...3|.4...|...2.|5...6" },
   // 3,3,3 or 5,5,5 extra twizzly puzzles
-  // { num_solutions: 1, pattern: "3.|12|21" },
-  { num_solutions: 1, pattern: "3.|22|11" },
-  { num_solutions: 1, pattern: "...|.31|.22|..1" },
-  { num_solutions: 1, pattern: "1...|..31|..22|...." },
-  { num_solutions: 1, pattern: "1...|..53|..24|...." },
-  { num_solutions: 1, pattern: ".....|..2..|..15.|.....|4...3" },
-  { num_solutions: 2, pattern: "....5|..2..|..15.|.....|4...3" },
+  // { solutions: 1, pattern: "3.|12|21" },
+  { solutions: [3], pattern: "3.|22|11" },
+  { solutions: [3], pattern: "...|.31|.22|..1" },
+  { solutions: [3], pattern: "1...|..31|..22|...." },
+  { solutions: [5], pattern: "1...|..53|..24|...." },
+  { solutions: [5], pattern: ".....|..2..|..15.|.....|4...3" },
+  { solutions: [5, 10], pattern: "....5|..2..|..15.|.....|4...3" },
   // 2+2+2,3+3,6 twizzly puzzles
-  { num_solutions: 1, pattern: "222|3.3" },
-  { num_solutions: 1, pattern: ".2.|.3.|232" },
-  { num_solutions: 1, pattern: "2.2|..3|236" },
-  { num_solutions: 1, pattern: "62..|2.3.|.32.|...." },
-  { num_solutions: 1, pattern: "62..|2.3.|.32.|...6" },
-  { num_solutions: 1, pattern: ".....|..2..|..6..|32.23" },
-  { num_solutions: 1, pattern: ".....|...3.|....2|..2..|2...3" },
-  { num_solutions: 1, pattern: ".....|.6.3.|....2|...2.|2...3" },
-  { num_solutions: 2, pattern: ".....|.6.3.|....2|6..2.|2...3" },
+  { solutions: [6], pattern: "222|3.3" },
+  { solutions: [6], pattern: ".2.|.3.|232" },
+  { solutions: [6, 9], pattern: "2.2|..3|236" },
+  { solutions: [6, 9], pattern: "62..|2.3.|.32.|...." },
+  { solutions: [6, 12], pattern: "62..|2.3.|.32.|...6" },
+  { solutions: [6, 9], pattern: ".....|..2..|..6..|32.23" },
+  { solutions: [6], pattern: ".....|...3.|....2|..2..|2...3" },
+  { solutions: [6, 9], pattern: ".....|.6.3.|....2|...2.|2...3" },
+  { solutions: [6, 12], pattern: ".....|.6.3.|....2|6..2.|2...3" },
 
   // Puzzles looking for sets
-  { num_solutions: 2, pattern: "1.2|.2.|..1" },
-  { num_solutions: 2, pattern: "121|2.2|121" },
-  { num_solutions: 2, pattern: ".33|...|114" },
-  { num_solutions: 3, pattern: ".1.|1.1|111" },
-  { num_solutions: 2, pattern: ".....|12.21" },
-  { num_solutions: 2, pattern: "32..|..11|323." },
-  { num_solutions: 3, pattern: "1.41|4...|...4|14.1" },
-  { num_solutions: 4, pattern: "2..2|.11.|.11.|2..2" },
-  { num_solutions: 4, pattern: "4224|2112|2112|4224" },
-  { num_solutions: 2, pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
-  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" },
-  { num_solutions: 3, pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
+  { solutions: [2, 3], pattern: "1.2|.2.|..1" },
+  { solutions: [4, 6], pattern: "121|2.2|121" },
+  { solutions: [4, 6], pattern: ".33|...|114" },
+  { solutions: [1, 2, 3], pattern: ".1.|1.1|111" }, // Good mirrored one
+  { solutions: [2, 3], pattern: ".....|12.21" },
+  { solutions: [3, 5], pattern: "32..|..11|323." },
+  { solutions: [4, 5], pattern: "1.41|4...|...4|14.1" },
+  { solutions: [2, 3, 4, 6], pattern: "2..2|.11.|.11.|2..2" },
+  { solutions: [4, 6, 9, 12, 18], pattern: "4224|2112|2112|4224" },
+  { solutions: [2, 7], pattern: "2.1.2|.....|1.2.1|.....|2.1.2" },
+  { solutions: [2, 4, 8], pattern: "2.1.2|.....|1.2.1|...2.|2.1.2" },
+  { solutions: [2, 4, 8], pattern: "2.1.2|.....|1.2.1|..2..|2.1.2" },
 ];
 
 let total_solns_required = 0;
-_puzzles.forEach((p) => total_solns_required += p.num_solutions);
+_puzzles.forEach((p) => total_solns_required += p.solutions.length);
 console.log(`${_puzzles.length} puzzles, totalling ${total_solns_required} solutions`);
 
 let idx = 0;
 let puzzle_sets: PuzzleSet[] = _puzzles.map(
-  ({ pattern, num_solutions }) => new PuzzleSet(pattern, 0, idx++, num_solutions),
+  ({ pattern, solutions }) => new PuzzleSet(pattern, 0, idx++, solutions),
 );
 const game = new Game(puzzle_sets);
 

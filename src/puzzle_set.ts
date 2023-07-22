@@ -4,17 +4,17 @@ class PuzzleSet {
   private grid_scale: number;
   private hover_tween: HoverTween;
 
-  grids: Grid[];
-  overlay_grid: Grid;
+  grids: SolvedGrid[]; // TODO: Flatten this into `Game`
+  overlay_grid: OverlayGrid;
 
   puzzle: Puzzle; // The underlying abstract representation of the puzzle
 
-  constructor(pattern: string, x: number, y: number, num_solutions: number) {
-    this.puzzle = new Puzzle(pattern, num_solutions);
+  constructor(pattern: string, x: number, y: number, solutions: number[]) {
+    this.puzzle = new Puzzle(pattern, solutions);
     this.hover_tween = new HoverTween(PUZZLE_HOVER_POP_AMOUNT);
 
     // Compute box and grid scales
-    let total_grid_width = (this.puzzle.grid_width + 1) * this.puzzle.num_solutions;
+    let total_grid_width = (this.puzzle.grid_width + 1) * this.puzzle.solutions.length;
     let total_grid_height = this.puzzle.grid_height + 1;
     this.grid_scale = Math.min(
       PUZZLE_BOX_MAX_WIDTH / total_grid_width, // scale to fill width
@@ -27,15 +27,15 @@ class PuzzleSet {
     );
 
     this.grids = [];
-    for (let i = 0; i < this.puzzle.num_solutions; i++) {
-      this.grids.push(new Grid(this.puzzle));
+    for (let i = 0; i < this.puzzle.solutions.length; i++) {
+      // TODO: this.grids.push(new Grid(this.puzzle));
     }
-    this.overlay_grid = new Grid(this.puzzle);
+    this.overlay_grid = new OverlayGrid(this.puzzle);
   }
 
   grid_transform(soln_number: number): Transform {
-    let centre_x = (soln_number - this.puzzle.num_solutions / 2 + 1 / 2) *
-      (this.unscaled_rect.width() / this.puzzle.num_solutions);
+    let centre_x = (soln_number - this.puzzle.solutions.length / 2 + 1 / 2) *
+      (this.unscaled_rect.width() / this.puzzle.solutions.length);
 
     return new Transform()
       .then_scale(this.grid_scale)

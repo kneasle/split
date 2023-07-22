@@ -7,13 +7,13 @@ class Puzzle {
   cells: Cell[];
 
   total_num_pips: number;
-  num_solutions: number;
+  solutions: number[];
   grid_width: number;
   grid_height: number;
 
-  constructor(pattern: string, num_solutions: number) {
+  constructor(pattern: string, solutions: number[]) {
     /* Values used by the rest of the game */
-    this.num_solutions = num_solutions;
+    this.solutions = solutions;
 
     // Parse string into a list of pips in each cell
     let pip_lines = pattern.split("|");
@@ -80,6 +80,24 @@ class Puzzle {
           num_pips,
           neighbours,
         });
+      }
+    }
+
+    // Check that the solutions look vaguely sane
+    let min_pip_count = Infinity;
+    let total_pip_count = 0;
+    for (const { num_pips } of this.cells) {
+      min_pip_count = Math.min(min_pip_count, num_pips);
+      total_pip_count += num_pips;
+    }
+    for (const s of this.solutions) {
+      if (total_pip_count % s !== 0) {
+        console.warn(
+          `Solution ${s} of "${pattern}" doesn't divide the total of ${total_pip_count}`,
+        );
+      }
+      if (s < min_pip_count) {
+        console.warn(`Solution ${s} of "${pattern}" is smaller than the min pip count`);
       }
     }
 
