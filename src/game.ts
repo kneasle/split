@@ -586,6 +586,14 @@ type MouseUpdate = {
   readonly scroll_delta: number;
 };
 
+function transform_mouse_update(update: MouseUpdate, transform: Transform): MouseUpdate {
+  return {
+    ...update,
+    pos: transform.transform_point(update.pos),
+    delta: update.delta.mul(transform.scale),
+  };
+}
+
 let mouse_event_handler = new MouseEventHandler();
 let gui_memory = new GuiMemory();
 

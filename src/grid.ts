@@ -30,7 +30,7 @@ class SolvedGrid {
   update(mouse: MouseUpdate, transform: Transform): void {
     let expanded_bbox = this.puzzle_set.puzzle.grid_bbox.expand(SOLVED_GRID_HOVER_BORDER);
     let is_hovered = transform.transform_rect(expanded_bbox).contains(mouse.pos);
-    this.solvedness.animate_to(!this.is_animating_out_of_overlay() && is_hovered);
+    this.solvedness.animate_to(is_hovered);
   }
 
   draw(transform: Transform): void {
@@ -97,14 +97,14 @@ class OverlayGrid {
   }
 
   update(time_delta: number, mouse: MouseUpdate, transform: Transform): void {
-    let local_mouse_pos = transform.inv().transform_point(mouse.pos);
+    mouse = transform_mouse_update(mouse, transform.inv());
 
-    if (mouse.button_clicked) this.on_mouse_down(local_mouse_pos);
+    if (mouse.button_clicked) this.on_mouse_down(mouse.pos);
     if (mouse.button_released) this.on_mouse_up();
-    this.handle_mouse_move(local_mouse_pos, mouse);
+    this.handle_mouse_move(mouse);
 
     if (this.is_drawing_line) {
-      this.update_ideal_line(local_mouse_pos);
+      this.update_ideal_line(mouse.pos);
     }
     this.update_display_line(time_delta, transform.scale);
   }
@@ -153,10 +153,10 @@ class OverlayGrid {
     return true;
   }
 
-  handle_mouse_move(local_mouse_pos: Vec2, mouse: MouseUpdate): void {
+  handle_mouse_move(mouse: MouseUpdate): void {
     if (!this.is_drawing_line) return; // Mouse moves don't matter if we're not drawing a line
 
-    let new_vert = this.puzzle.nearest_vertex(local_mouse_pos).vert_idx;
+    let new_vert = this.puzzle.nearest_vertex(mouse.pos).vert_idx;
     let last_vert = this.line_path[this.line_path.length - 1];
     let penultimate_vert = this.line_path[this.line_path.length - 2];
 
