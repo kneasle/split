@@ -6,7 +6,9 @@ class Puzzle {
   edges: { v1: number; v2: number }[];
   cells: Cell[];
 
+  pip_idxs_per_cell: number[][];
   total_num_pips: number;
+
   solutions: number[];
   grid_width: number;
   grid_height: number;
@@ -99,6 +101,18 @@ class Puzzle {
       if (s < min_pip_count) {
         console.warn(`Solution ${s} of "${pattern}" is smaller than the min pip count`);
       }
+    }
+
+    // Compute which pip indices belong to which cells
+    this.pip_idxs_per_cell = [];
+    let num_pips = 0;
+    for (let c = 0; c < this.cells.length; c++) {
+      const cell = this.cells[c];
+      const pip_idxs = [];
+      for (let p = 0; p < cell.num_pips; p++) {
+        pip_idxs.push(num_pips++);
+      }
+      this.pip_idxs_per_cell.push(pip_idxs);
     }
 
     // Find the bbox of the puzzle

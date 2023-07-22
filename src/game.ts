@@ -1,6 +1,6 @@
 /* Game code for Split */
 
-/// Singleton instance which handles all top-level game logic
+/// Once single instance of this class handles all top-level game logic
 class Game {
   /* Puzzle world */
   puzzle_world_transform: Transform;
@@ -27,9 +27,9 @@ class Game {
     let puzzle_idx = this.focussed_puzzle();
     if (puzzle_idx !== undefined) {
       let focussed_puzzle_set = this.puzzle_sets[puzzle_idx];
+      // Update the currently displayed grid
       let transform = this.unanimated_overlay_grid_transform(focussed_puzzle_set);
       focussed_puzzle_set.overlay_grid.update(time_delta, mouse, transform);
-
       // If the overlay grid has just been solved, move it to the puzzle world
       if (focussed_puzzle_set.overlay_grid.has_just_become_stashable()) {
         this.stash_overlay_grid(focussed_puzzle_set);
@@ -62,6 +62,22 @@ class Game {
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
       ctx.fillText(`#${i + 1}`, rect.min.x - camera_transform.scale * 0.1, rect.centre().y);
+      // Grid place-holders
+      let faded_color_set: ColorSet = {
+        cell_color: Color.lerp(CELL_COLOR, BG_COLOR, PLACEHOLDER_GRID_FADE_AMOUNT),
+        grid_color: Color.lerp(GRID_COLOR, BG_COLOR, PLACEHOLDER_GRID_FADE_AMOUNT),
+        pip_color: Color.lerp(PIP_COLOR, BG_COLOR, PLACEHOLDER_GRID_FADE_AMOUNT),
+      };
+      for (let g = 0; g < puzzle_set.puzzle.solutions.length; g++) {
+        draw_grid(
+          puzzle_set.grid_transform(g).then(camera_transform),
+          puzzle_set.puzzle,
+          faded_color_set,
+          [],
+          undefined,
+          new BoolTween(false, 1),
+        );
+      }
     }
     // Grids
     this.draw_solved_grids((g) => !g.is_animating_out_of_overlay());

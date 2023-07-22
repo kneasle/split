@@ -8,6 +8,7 @@ const LINE_COLOR = Color.from_hex("#fff");
 const PIP_COLOR = Color.from_hex("#fff");
 const CORRECT_COLOR = Color.from_hex("#0f0");
 const INCORRECT_COLOR = Color.from_hex("#f77");
+const PLACEHOLDER_GRID_FADE_AMOUNT = 0.7;
 // Animation
 const PUZZLE_FOCUS_TIME = 0.7; // Seconds
 const OVERLAY_BUTTON_SPREAD = 0.7;

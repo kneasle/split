@@ -3,7 +3,6 @@ class SolvedGrid {
   transform_tween: Tween<SolvedGridTransform>;
 
   solvedness: BoolTween;
-  pip_idxs_per_cell_unsolved: number[][];
   pip_idxs_per_cell_solved: number[][];
   solution_line: number[];
   pip_group_size: number;
@@ -23,7 +22,6 @@ class SolvedGrid {
 
     this.solvedness = new BoolTween(false, SOLVE_ANIMATION_TIME);
     let grid = puzzle_set.overlay_grid;
-    this.pip_idxs_per_cell_unsolved = grid.pip_idxs_per_cell;
     this.pip_idxs_per_cell_solved = grid.solution!.pip_idxs_per_cell;
     this.solution_line = grid.line_path;
     this.pip_group_size = grid.solution!.inner.pip_group_size;
@@ -42,8 +40,8 @@ class SolvedGrid {
     draw_grid(
       transform,
       this.puzzle_set.puzzle,
+      DEFAULT_COLOR_SET,
       [line],
-      this.pip_idxs_per_cell_unsolved,
       solution,
       this.solvedness,
     );
@@ -65,7 +63,6 @@ type SolvedGridTransform = "overlay" | { grid_idx: number; scale_factor: number 
 
 class OverlayGrid {
   puzzle: Puzzle;
-  pip_idxs_per_cell: number[][]; // List of pip idxs per cell
 
   solution: FullSolution | undefined;
   solvedness: BoolTween;
@@ -91,18 +88,6 @@ class OverlayGrid {
     this.line_path = []; // List of vertex indices which make up the line being drawn
     this.ideal_line = { path: [], disp_length: 0, was_short_line: false };
     this.displayed_line = { path: [], disp_length: 0, was_short_line: false };
-
-    // Create pips, and record which pips belong in which cell (in an unsolved puzzle)
-    this.pip_idxs_per_cell = [];
-    let num_pips = 0;
-    for (let c = 0; c < this.puzzle.cells.length; c++) {
-      const cell = this.puzzle.cells[c];
-      const pip_idxs = [];
-      for (let p = 0; p < cell.num_pips; p++) {
-        pip_idxs.push(num_pips++);
-      }
-      this.pip_idxs_per_cell.push(pip_idxs);
-    }
   }
 
   update(time_delta: number, mouse: MouseUpdate, transform: Transform): void {
@@ -129,8 +114,8 @@ class OverlayGrid {
     draw_grid(
       transform,
       this.puzzle,
+      DEFAULT_COLOR_SET,
       [this.displayed_line],
-      this.pip_idxs_per_cell,
       solution,
       this.solvedness,
     );
@@ -232,7 +217,7 @@ class OverlayGrid {
       });
 
       // Group pips into cells
-      let pip_idxs_in_region = region.cells.flatMap((idx: number) => this.pip_idxs_per_cell[idx]);
+      let pip_idxs_in_region = region.cells.flatMap((idx) => this.puzzle.pip_idxs_per_cell[idx]);
       for (const cell_idx of cells_to_add_pips_to) {
         // Reserve up to 10 pips to go in this cell
         const num_pips_in_cell = Math.min(pip_idxs_in_region.length, 10);
@@ -439,11 +424,13 @@ class OverlayGrid {
 function draw_grid(
   transform: Transform,
   puzzle: Puzzle,
+  color_set: ColorSet,
   lines: LerpedLine[],
-  pip_idxs_per_cell: number[][],
   solution: { is_correct: boolean; pip_idxs_per_cell: number[][] } | undefined,
   solvedness: BoolTween,
-) {
+): void {
+  // TODO: Occlusion cull grids which are off the screen
+
   let color_lerped_with_solution = (color: Color) => {
     let is_correct = solution && solution.is_correct;
     return Color.lerp(color, is_correct ? CORRECT_COLOR : INCORRECT_COLOR, solvedness.factor())
@@ -455,7 +442,7 @@ function draw_grid(
   transform.apply_to_canvas(ctx);
 
   // Cell
-  ctx.fillStyle = CELL_COLOR.to_canvas_color();
+  ctx.fillStyle = color_set.cell_color.to_canvas_color();
   for (const c of puzzle.cells) {
     ctx.beginPath();
     for (const v of c.verts) {
@@ -466,7 +453,7 @@ function draw_grid(
 
   // Edges
   ctx.lineWidth = EDGE_WIDTH;
-  ctx.strokeStyle = GRID_COLOR.to_canvas_color();
+  ctx.strokeStyle = color_set.grid_color.to_canvas_color();
   for (const e of puzzle.edges) {
     let v1 = puzzle.verts[e.v1];
     let v2 = puzzle.verts[e.v2];
@@ -477,7 +464,7 @@ function draw_grid(
   }
 
   // Vertices
-  ctx.fillStyle = GRID_COLOR.to_canvas_color();
+  ctx.fillStyle = color_set.grid_color.to_canvas_color();
   for (let v_idx = 0; v_idx < puzzle.verts.length; v_idx++) {
     const { x, y } = puzzle.verts[v_idx];
     ctx.fillRect(x - VERTEX_SIZE / 2, y - VERTEX_SIZE / 2, VERTEX_SIZE, VERTEX_SIZE);
@@ -524,7 +511,7 @@ function draw_grid(
 
   // Determine pip coords (including solve animations)
   let num_pips = puzzle.total_num_pips;
-  let pip_coords = all_pip_coords(puzzle, pip_idxs_per_cell);
+  let pip_coords = all_pip_coords(puzzle);
   if (solution !== undefined) {
     let solved_pip_coords = all_pip_coords(puzzle, solution.pip_idxs_per_cell);
     for (let i = 0; i < num_pips; i++) {
@@ -534,7 +521,7 @@ function draw_grid(
     }
   }
   // Draw these pips
-  ctx.fillStyle = color_lerped_with_solution(PIP_COLOR);
+  ctx.fillStyle = color_lerped_with_solution(color_set.pip_color);
   for (const { x, y } of pip_coords) {
     ctx.fillRect(x - PIP_SIZE / 2, y - PIP_SIZE / 2, PIP_SIZE, PIP_SIZE);
   }
@@ -542,7 +529,21 @@ function draw_grid(
   ctx.restore();
 }
 
-function all_pip_coords(puzzle: Puzzle, pip_idxs_per_cell: number[][]): Vec2[] {
+type ColorSet = {
+  cell_color: Color;
+  grid_color: Color;
+  pip_color: Color;
+};
+
+const DEFAULT_COLOR_SET: ColorSet = {
+  cell_color: CELL_COLOR,
+  grid_color: GRID_COLOR,
+  pip_color: PIP_COLOR,
+};
+
+function all_pip_coords(puzzle: Puzzle, pip_idxs_per_cell?: number[][]): Vec2[] {
+  pip_idxs_per_cell ||= puzzle.pip_idxs_per_cell;
+
   let all_pip_coords = [];
   for (let i = 0; i < puzzle.total_num_pips; i++) all_pip_coords.push(Vec2.ZERO);
 
