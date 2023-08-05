@@ -1,14 +1,15 @@
+use std::time::Instant;
+
 fn main() {
-    let string = "1.1|2.2";
+    // let string = "1.1|2.2";
+    let string = "1.41|4...|...4|14.1";
     // let string = "2.1.2|.....|1...1|.....|2.1.2";
-    let puzzle = Puzzle::new(string);
-    dbg!(&puzzle);
-    solve(&puzzle);
+    SolvingContext::new(&Puzzle::new(string)).solve();
 }
 
 #[derive(Debug)]
 struct Puzzle {
-    cells: Vec<usize>,
+    pip_count_per_cell: Vec<usize>,
     width: usize,
     height: usize,
 
@@ -18,13 +19,13 @@ struct Puzzle {
 impl Puzzle {
     fn new(string: &str) -> Self {
         // Parse puzzle string
-        let mut cells = Vec::new();
+        let mut pip_count_per_cell = Vec::new();
         let mut width = None;
         for line in string.split('|') {
             // Add pip counts
             for ch in line.chars() {
                 match ".123456789".find(ch) {
-                    Some(pip_count) => cells.push(pip_count),
+                    Some(pip_count) => pip_count_per_cell.push(pip_count),
                     None => panic!("Invalid char found in {string:?}"),
                 };
             }
@@ -35,7 +36,7 @@ impl Puzzle {
             width = Some(line.len());
         }
         let width = width.unwrap();
-        let height = cells.len() / width;
+        let height = pip_count_per_cell.len() / width;
         // Compute adjacency bitmaps
         let mut adjacent_cell_bitmaps = Vec::new();
         for cy in 0..height as isize {
@@ -54,7 +55,7 @@ impl Puzzle {
         }
 
         Self {
-            cells,
+            pip_count_per_cell,
             width,
             height,
 
@@ -63,7 +64,7 @@ impl Puzzle {
     }
 
     fn total_num_pips(&self) -> usize {
-        self.cells.iter().sum::<usize>()
+        self.pip_count_per_cell.iter().sum::<usize>()
     }
 
     fn print_bitmap(&self, bitmaps: &[(u64, char)]) {
@@ -71,106 +72,171 @@ impl Puzzle {
     }
 }
 
-fn solve(puzzle: &Puzzle) {
-    let _min_solution_value = puzzle.cells.iter().filter(|v| **v > 0).min();
+#[derive(Debug)]
+struct SolvingContext<'data> {
+    puzzle: &'data Puzzle,
+    num_solutions: usize,
 
-    for cell_idx in 0..1
-    /* puzzle.cells.len() */
-    {
-        PartialSolution::with_initial_inside(puzzle, cell_idx).recursive_solve(0);
+    /// Bitmap: There's a `1` and bit index `i` iff we are still looking a solution which splits
+    /// the pips into regions of size `i`.
+    possible_solutions: u32,
+}
+
+impl<'data> SolvingContext<'data> {
+    fn new(puzzle: &'data Puzzle) -> Self {
+        // Create a bitmap for which possible solutions are valid
+        let most_pips_in_cell = *puzzle
+            .pip_count_per_cell
+            .iter()
+            .filter(|v| **v > 0)
+            .max()
+            .unwrap();
+        let mut possible_solutions = 0;
+        for i in most_pips_in_cell..=puzzle.total_num_pips() / 2 {
+            if puzzle.total_num_pips() % i == 0 {
+                possible_solutions |= 1 << i;
+            }
+        }
+
+        Self {
+            puzzle,
+            possible_solutions,
+            num_solutions: 0,
+        }
+    }
+
+    fn solve(&mut self) {
+        let start = Instant::now();
+        for cell_idx in 0..self.puzzle.pip_count_per_cell.len() {
+            PartialSolution::with_initial_inside(self, cell_idx).recursive_solve(self, 0);
+        }
+        println!(
+            "{} solutions found in {:?}",
+            self.num_solutions,
+            start.elapsed()
+        );
+    }
+
+    fn biggest_required_pip_count(&self) -> usize {
+        31 - self.possible_solutions.leading_zeros() as usize
     }
 }
 
 #[derive(Debug, Clone)]
-struct PartialSolution<'p> {
+struct PartialSolution {
     inside: u64,
     outside: u64,
     expandable_cells: u64,
 
-    region_pip_count: Option<usize>,
-    puzzle: &'p Puzzle,
+    pips_in_current_region: usize,
 }
 
-impl<'p> PartialSolution<'p> {
+impl PartialSolution {
     /// Create a `PartialSolution` with one single 'inside' cell at the given `cell_idx`, and with
     /// every cell below that marked as 'outside'.
-    fn with_initial_inside(puzzle: &'p Puzzle, cell_idx: usize) -> Self {
+    fn with_initial_inside(ctx: &SolvingContext, cell_idx: usize) -> Self {
         let inside = 1 << cell_idx;
         let outside = inside - 1; // 1s up to the lowest 1 in inside
         Self {
             inside,
             outside,
-            expandable_cells: puzzle.adjacent_cell_bitmaps[cell_idx] & !outside,
-            region_pip_count: None,
-            puzzle,
+            expandable_cells: ctx.puzzle.adjacent_cell_bitmaps[cell_idx] & !outside,
+            pips_in_current_region: ctx.puzzle.pip_count_per_cell[cell_idx],
         }
     }
 
-    fn recursive_solve(&self, depth: usize) {
-        println!("Recursively solving puzzle at depth {depth}");
-        self.print_assignment_str();
-        println!();
-        self.puzzle.print_bitmap(&[(self.expandable_cells, '#')]);
-        println!();
-        println!();
+    fn recursive_solve(&self, ctx: &mut SolvingContext, depth: usize) {
+        // println!("Recursively solving puzzle at depth {depth}");
+        // self.print_assignment_str(ctx);
+        // println!();
+        // ctx.puzzle.print_bitmap(&[(self.expandable_cells, '#')]);
+        // println!();
+        // println!();
 
-        // if depth >= 3 {
-        //     println!("Exceeding depth limit");
-        //     return;
-        // }
-
-        // TODO: Check this solution for (im)possibility
-
-        match self.cell_to_expand() {
+        match self.cell_to_expand(ctx) {
             Some(next_cell) => {
-                // Cells left to expand; keep recursing
-                for a in [Assignment::Outside, Assignment::Inside] {
+                // Cells left to expand; keep recursing.
+                //
+                // We expand inside first so that we find the solutions by largest pip count first.
+                // We only care about generating one solution per pip count, so if we can quickly
+                // generate the largest pip count, we can very quickly lower the upper bound on
+                // remaining pip size.
+                for a in [Assignment::Inside, Assignment::Outside] {
                     let mut new_partial = self.clone();
-                    new_partial.expand_cell(next_cell, a);
-                    new_partial.recursive_solve(depth + 1);
+                    if new_partial.assign_cell(ctx, next_cell, a) {
+                        new_partial.recursive_solve(ctx, depth + 1);
+                    }
                 }
             }
             None => {
-                // TODO: Found full solution
-                println!("FOUND SOLUTION:");
-                self.print_assignment_str();
+                if self.pips_in_current_region == 0
+                    || ctx.puzzle.total_num_pips() % self.pips_in_current_region != 0
+                {
+                    return;
+                }
+                println!("FOUND SOLUTION OF {}:", self.pips_in_current_region);
+                self.print_assignment_str(ctx);
                 println!();
+                // TODO: Add a twist and continue searching
+                ctx.num_solutions += 1;
+                if ctx.num_solutions > 10 {
+                    panic!();
+                }
             }
         };
     }
 
-    fn cell_to_expand(&self) -> Option<usize> {
+    fn cell_to_expand(&self, ctx: &SolvingContext) -> Option<usize> {
         let lowest_unexpanded_cell = self.expandable_cells.trailing_zeros() as usize;
-        if lowest_unexpanded_cell < self.puzzle.cells.len() {
+        if lowest_unexpanded_cell < ctx.puzzle.pip_count_per_cell.len() {
             Some(lowest_unexpanded_cell)
         } else {
             None
         }
     }
 
-    fn expand_cell(&mut self, cell: usize, assignment: Assignment) {
-        println!("Expanding cell {cell}");
+    #[must_use]
+    fn assign_cell(
+        &mut self,
+        ctx: &SolvingContext,
+        cell_idx: usize,
+        assignment: Assignment,
+    ) -> bool {
+        // println!("Expanding cell {cell_idx} with {assignment:?}");
 
         // Add the new value to the assignments
         let assigned_bitmap = match assignment {
             Assignment::Outside => &mut self.outside,
             Assignment::Inside => &mut self.inside,
         };
-        *assigned_bitmap |= 1 << cell;
+        *assigned_bitmap |= 1 << cell_idx;
         // Update which cells are expandable
-        self.expandable_cells &= !(1 << cell); // This cell can't be expanded more
+        self.expandable_cells &= !(1 << cell_idx); // This cell can't be expanded more
         if assignment == Assignment::Inside {
-            // If this cell was inside, then we can continue extending this region
-            let new_adjacent_cells = self.puzzle.adjacent_cell_bitmaps[cell];
+            self.pips_in_current_region += ctx.puzzle.pip_count_per_cell[cell_idx];
+            // println!(
+            //     "{} (biggest possible) vs {} (in region)",
+            //     ctx.biggest_required_pip_count(),
+            //     self.pips_in_current_region
+            // );
+            if self.pips_in_current_region > ctx.biggest_required_pip_count() {
+                // This region includes so many pips that it can't provide a new solution
+                // println!("Rejecting solution because it exceeds maximum count");
+                return false;
+            }
+            // If this cell was inside, then we should now have more expandable cells
+            let new_adjacent_cells = ctx.puzzle.adjacent_cell_bitmaps[cell_idx];
             let already_assigned_cells = self.inside | self.outside;
             self.expandable_cells |= new_adjacent_cells & !already_assigned_cells;
         }
 
         assert_eq!(self.inside & self.outside, 0); // No cell can be both inside and outside the line
+
+        true
     }
 
-    fn print_assignment_str(&self) {
-        self.puzzle
+    fn print_assignment_str(&self, ctx: &SolvingContext) {
+        ctx.puzzle
             .print_bitmap(&[(self.inside, 'I'), (self.outside, 'O')]);
     }
 }
