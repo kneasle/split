@@ -1,0 +1,9 @@
+[package]
+name = "split"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+index_vec = "0.1.4"
+itertools = "0.13.0"
+three-d = "0.17.0"
